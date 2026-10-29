@@ -2,6 +2,13 @@
 
 Her sürüm için kısa notlar.
 
+## 0.4.1
+
+- Sağ altta bildirim zili: Claude ve terminal bildirimleri, hatalar, yeni sürüm haberleri; rahatsız etme seçeneği
+- Git grafiği VS Code gibi sıkı: her satır kendi şerit genişliğini kullanır
+- Claude limitleri kapalıyken sağ altta ayarı açan "Limitler" girişi
+- kite komutu her zaman /Applications'daki uygulamayı açar
+
 ## 0.4.0
 
 - Git geçmişi: commit kartı (avatar, mesajın tamamı, değişiklik istatistiği, GitHub'da aç) ve şeritli dosya listesi
