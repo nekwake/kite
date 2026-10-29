@@ -2,6 +2,13 @@
 
 Her sürüm için kısa notlar.
 
+## 0.4.0
+
+- Git geçmişi: commit kartı (avatar, mesajın tamamı, değişiklik istatistiği, GitHub'da aç) ve şeritli dosya listesi
+- Prettier ile biçimlendirme (⌥⇧F) ve kaydederken biçimlendirme seçeneği
+- Claude 5 saatlik ve haftalık kullanım göstergesi (Ayarlar › Hesaplar)
+- Terminal panelinin başlığı altında ayırıcı çizgi
+
 ## 0.3.0
 
 - Windows desteği: kurulum dosyası, PowerShell terminali, Kite'ın kendi pencere düğmeleri, Ctrl kısayolları
