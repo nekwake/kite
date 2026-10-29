@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { getVersion } from "@tauri-apps/api/app";
 import { inTauri } from "./events";
+
+/** The running Kite's version ("0.4.1"), or null outside the app */
+export function useAppVersion() {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (inTauri) getVersion().then(setVersion).catch(() => {});
+  }, []);
+  return version;
+}
+
+export type UpdateCheck = "available" | "latest" | "error";
 
 const SIX_HOURS = 6 * 60 * 60 * 1000;
 
@@ -33,5 +45,17 @@ export function useUpdate() {
     await relaunch();
   };
 
-  return { update, progress, install };
+  /** Manual check from Settings › About */
+  const checkNow = async (): Promise<UpdateCheck> => {
+    if (!inTauri) return "error";
+    try {
+      const u = await check();
+      if (u) setUpdate(u);
+      return u ? "available" : "latest";
+    } catch {
+      return "error";
+    }
+  };
+
+  return { update, progress, install, checkNow };
 }

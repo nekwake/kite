@@ -28,7 +28,7 @@ import { ChatView } from "./components/ChatView";
 import { dropChat } from "./lib/chatStore";
 import { PanelView, TerminalPanel, TermTab } from "./components/TerminalPanel";
 import { Problem, useProblems } from "./lib/problems";
-import { useUpdate } from "./lib/updater";
+import { useAppVersion, useUpdate } from "./lib/updater";
 import { formatText, parserFor } from "./lib/format";
 import { pushNotice } from "./lib/notifications";
 import { level, pct, resetTime, useClaudeUsage } from "./lib/usage";
@@ -92,6 +92,7 @@ export default function App() {
   const { status: gitStatus, refresh: refreshGit } = useGitStatus(root);
   const settings = useSettings();
   const updater = useUpdate();
+  const version = useAppVersion();
   const usage = useClaudeUsage();
   const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined);
 
@@ -721,6 +722,20 @@ export default function App() {
     { id: "zoom_out", label: "Yazıyı küçült", shortcut: "⌘-", run: () => zoom(-1) },
     { id: "zoom_reset", label: "Yazı boyutunu sıfırla", shortcut: "⌘0", run: () => zoom("reset") },
     { id: "settings", label: "Ayarlar", shortcut: "⌘,", run: () => setSettingsOpen(true) },
+    {
+      id: "check_update",
+      label: "Güncellemeleri denetle",
+      run: () =>
+        updater.checkNow().then((r) =>
+          pushNotice(
+            r === "available"
+              ? { kind: "success", title: t("Yeni sürüm var: sağ üstteki Güncelle düğmesini kullan") }
+              : r === "latest"
+                ? { kind: "info", title: `${t("En güncel sürümü kullanıyorsun")} (${version ?? "?"})` }
+                : { kind: "error", title: t("Denetlenemedi, internet bağlantını kontrol et") },
+          ),
+        ),
+    },
     ...(activeFile
       ? [
           { id: "reveal", label: isWindows ? "Aktif dosyayı Gezgin'de göster" : "Aktif dosyayı Finder'da göster", run: () => api.revealInFinder(activeFile.path) },
@@ -780,9 +795,11 @@ export default function App() {
     return (
       <div className="app">
         <TitleBar label="Kite" update={updateInfo} />
-        <Welcome recent={recentProjects()} onOpenFolder={openFolder} onOpenRecent={switchRoot} />
+        <Welcome recent={recentProjects()} version={version} onOpenFolder={openFolder} onOpenRecent={switchRoot} />
         {settingsOpen && (
         <Settings
+          version={version}
+          onCheckUpdate={updater.checkNow}
           initialSection={settingsSection}
           onClose={() => {
             setSettingsOpen(false);
@@ -961,6 +978,8 @@ export default function App() {
       </div>
       {settingsOpen && (
         <Settings
+          version={version}
+          onCheckUpdate={updater.checkNow}
           initialSection={settingsSection}
           onClose={() => {
             setSettingsOpen(false);

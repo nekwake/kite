@@ -1596,3 +1596,8 @@ body.dragging-tab, body.dragging-tab * { cursor: grabbing !important; user-selec
 .bell-item:hover .icon-btn { opacity: 1; }
 .bell-dnd { padding: 6px 12px; border-top: 1px solid #333; color: var(--fg-faint); font-size: 11px; }
 .usage-badge.muted { color: var(--fg-faint); }
+.welcome-version { margin-top: -10px; color: var(--fg-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.update-check { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.update-check-result { font-size: 12px; color: var(--fg-dim); }
+.update-check-result.available { color: var(--accent); }
+.update-check-result.error { color: #f14c4c; }

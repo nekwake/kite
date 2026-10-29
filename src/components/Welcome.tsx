@@ -22,8 +22,9 @@ function useFact(): Fact {
   return fact;
 }
 
-export function Welcome({ recent, onOpenFolder, onOpenRecent }: {
+export function Welcome({ recent, version, onOpenFolder, onOpenRecent }: {
   recent: string[];
+  version: string | null;
   onOpenFolder: () => void;
   onOpenRecent: (dir: string) => void;
 }) {
@@ -34,6 +35,7 @@ export function Welcome({ recent, onOpenFolder, onOpenRecent }: {
         <KiteLoader size={96} />
       </div>
       <span className="wordmark">Kite</span>
+      {version && <span className="welcome-version">v{version}</span>}
       <button className="primary-btn" onClick={onOpenFolder}>{t("Klasör aç")} (⌘O)</button>
       {recent.length > 0 && (
         <div className="recent-projects">

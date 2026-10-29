@@ -1,5 +1,11 @@
 // English UI strings, keyed by the Turkish source text. Missing keys fall back to Turkish.
 export const EN: Record<string, string> = {
+  "Hafif kod editörü ve terminal": "A lightweight code editor and terminal",
+  "Güncellemeleri denetle": "Check for updates",
+  "Denetleniyor…": "Checking…",
+  "Yeni sürüm var: sağ üstteki Güncelle düğmesini kullan": "A new version is available: use the Update button in the top right",
+  "En güncel sürümü kullanıyorsun": "You're on the latest version",
+  "Denetlenemedi, internet bağlantını kontrol et": "Couldn't check, verify your internet connection",
   "Bildirimler (rahatsız etme açık)": "Notifications (do not disturb on)",
   "BİLDİRİMLER": "NOTIFICATIONS",
   "Rahatsız etme": "Do not disturb",

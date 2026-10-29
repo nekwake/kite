@@ -7,6 +7,7 @@ import { DEFAULT_SETTINGS, updateSettings, useSettings } from "../lib/settings";
 import { KiteMark } from "./KiteLogo";
 import { getKey, setKey } from "../lib/openrouter";
 import { usageApi } from "../lib/usage";
+import { UpdateCheck } from "../lib/updater";
 import { t } from "../lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -25,6 +26,8 @@ function setLanguage(language: "tr" | "en") {
 
 type Props = {
   initialSection?: string;
+  version: string | null;
+  onCheckUpdate: () => Promise<UpdateCheck>;
   onClose: () => void;
   github: GithubAccount | null;
   claude: ClaudeAccount | null;
@@ -258,8 +261,9 @@ export function Settings(props: Props) {
     <div className="set-about">
       <KiteMark size={56} />
       <div>
-        <b>{t("Kite")}</b>
-        <small>{t("Hafif, hızlı, Claude ile entegre kod editörü")}</small>
+        <b>Kite {props.version ?? ""}</b>
+        <small>{t("Hafif kod editörü ve terminal")}</small>
+        <UpdateCheckButton check={props.onCheckUpdate} />
         <button className="link-btn" onClick={() => updateSettings(DEFAULT_SETTINGS)}>{t("Editör ayarlarını sıfırla")}</button>
       </div>
     </div>
@@ -317,6 +321,31 @@ export function Settings(props: Props) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function UpdateCheckButton({ check }: { check: () => Promise<UpdateCheck> }) {
+  const [state, setState] = useState<UpdateCheck | "checking" | null>(null);
+  const label = {
+    checking: t("Denetleniyor…"),
+    available: t("Yeni sürüm var: sağ üstteki Güncelle düğmesini kullan"),
+    latest: t("En güncel sürümü kullanıyorsun"),
+    error: t("Denetlenemedi, internet bağlantını kontrol et"),
+  };
+  return (
+    <div className="update-check">
+      <button
+        className="secondary-btn"
+        disabled={state === "checking"}
+        onClick={() => {
+          setState("checking");
+          check().then(setState);
+        }}
+      >
+        {t("Güncellemeleri denetle")}
+      </button>
+      {state && <span className={`update-check-result ${state}`}>{label[state]}</span>}
     </div>
   );
 }
