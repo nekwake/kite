@@ -21,7 +21,8 @@ import { GitView } from "./components/GitView";
 import { GitHistory } from "./components/GitHistory";
 import { KiteMark } from "./components/KiteLogo";
 import { Settings } from "./components/Settings";
-import { TerminalPanel, TermTab } from "./components/TerminalPanel";
+import { PanelView, TerminalPanel, TermTab } from "./components/TerminalPanel";
+import { Problem, useProblems } from "./lib/problems";
 import { ActivityBar, Resizer, StatusBar, TitleBar, View } from "./components/Chrome";
 import { ClaudeSessions } from "./components/ClaudeSessions";
 
@@ -66,6 +67,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [terms, setTerms] = useState<TermTab[]>([]);
+  const [panelView, setPanelView] = useState<PanelView>("terminal");
+  const problems = useProblems();
   const [activeTerm, setActiveTerm] = useState<number | null>(null);
   const nextTermId = useRef(1);
 
@@ -97,12 +100,30 @@ export default function App() {
       const id = nextTermId.current++;
       const cwd = opts.cwd ?? root;
       const title = opts.title ?? (cwd === root ? "zsh" : basename(cwd));
-      setTerms((t) => [...t, { id, cwd, command: opts.command, title }]);
+      setTerms((t) => [...t, { id, title, panes: [{ id: nextTermId.current++, cwd, command: opts.command }] }]);
+      setPanelView("terminal");
       setActiveTerm(id);
       setPanelOpen(true);
     },
     [root],
   );
+
+  // ⌘\ splits the active terminal: a new shell beside it, in the same folder
+  const splitTerminal = () => {
+    const tab = terms.find((t) => t.id === activeTerm);
+    if (!tab) return newTerminal();
+    const cwd = tab.panes[tab.panes.length - 1].cwd;
+    setTerms((ts) => ts.map((t) => (t.id === tab.id ? { ...t, panes: [...t.panes, { id: nextTermId.current++, cwd }] } : t)));
+    setPanelOpen(true);
+    setPanelView("terminal");
+  };
+
+  const closePane = (tabId: number, paneId: number) => {
+    const tab = terms.find((t) => t.id === tabId);
+    if (!tab) return;
+    if (tab.panes.length <= 1) return closeTerminal(tabId);
+    setTerms((ts) => ts.map((t) => (t.id === tabId ? { ...t, panes: t.panes.filter((p) => p.id !== paneId) } : t)));
+  };
 
   const closeTerminal = (id: number) => {
     const rest = terms.filter((t) => t.id !== id);
@@ -134,7 +155,11 @@ export default function App() {
 
   // Open the folder passed on the command line, or the last one used
   useEffect(() => {
-    if (new URLSearchParams(location.search).has("blank")) return;
+    const params = new URLSearchParams(location.search);
+    if (params.has("blank")) return;
+    // A window opened by `kite <dir>` while Kite was already running
+    const fromLaunch = params.get("dir");
+    if (fromLaunch) return switchRoot(fromLaunch);
     api.initialDir().then((dir) => {
       const d = dir ?? storedRoot();
       if (d) switchRoot(d);
@@ -216,15 +241,24 @@ export default function App() {
     setActiveId(tab.id);
   };
 
-  const openFile = async (path: string): Promise<boolean> => {
+  /** Opens a file tab; a preview (single click) reuses the current preview tab */
+  const openFile = async (path: string, preview = false): Promise<boolean> => {
     if (tabs.some((t) => t.id === path)) {
+      if (!preview) pinTab(path);
       setActiveId(path);
       return true;
     }
     try {
       const content = await api.readFile(path);
-      setTabs((ts) => (ts.some((t) => t.id === path) ? ts : [...ts, { kind: "file", id: path, path, content, saved: content }]));
-      setActiveId(path);
+      setTabs((ts) => {
+        if (ts.some((t) => t.id === path)) return ts;
+        const tab: FileTab = { kind: "file", id: path, path, content, saved: content, preview };
+        const old = preview ? ts.find((t) => t.kind === "file" && t.preview && !isDirty(t) && groupOf(t) === "main") : undefined;
+        if (!old) return [...ts, tab];
+        if (old.kind === "file") monaco.editor.getModels().find((m) => m.uri.path === old.path)?.dispose();
+        return ts.map((t) => (t === old ? tab : t));
+      });
+      setActiveId(path, "main");
       setError(null);
       return true;
     } catch (e) {
@@ -233,8 +267,11 @@ export default function App() {
     }
   };
 
+  const pinTab = (id: string) =>
+    setTabs((ts) => ts.map((t) => (t.id === id && t.kind === "file" && t.preview ? { ...t, preview: false } : t)));
+
   const openMatch = async (path: string, line: number, start: number, end: number) => {
-    if (await openFile(path)) setReveal({ path, line, start, end, nonce: Date.now() });
+    if (await openFile(path, true)) setReveal({ path, line, start, end, nonce: Date.now() });
   };
 
   const loadDiff = async (path: string, source: DiffSource) => {
@@ -510,7 +547,7 @@ export default function App() {
   }, []);
 
   const togglePanel = useCallback(() => {
-    if (!panelOpen && terms.length === 0) newTerminal();
+    if (!panelOpen && terms.length === 0 && panelView === "terminal") newTerminal();
     else setPanelOpen((p) => !p);
   }, [panelOpen, terms.length, newTerminal]);
 
@@ -537,6 +574,11 @@ export default function App() {
     toggle_sidebar: () => setSidebarOpen((s) => !s),
     toggle_terminal: togglePanel,
     new_terminal: () => newTerminal(),
+    split_terminal: splitTerminal,
+    show_problems: () => {
+      setPanelView("problems");
+      setPanelOpen(true);
+    },
   };
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
@@ -554,10 +596,10 @@ export default function App() {
     const keys: Record<string, string> = {
       ",": "settings", n: "new_file", o: "open_folder", p: "quick_open", s: "save", w: "close_tab", g: "goto_line",
       "=": "zoom_in", "+": "zoom_in", "-": "zoom_out", "0": "zoom_reset",
-      b: "toggle_sidebar", j: "toggle_terminal", t: "new_terminal", l: "new_claude",
+      b: "toggle_sidebar", j: "toggle_terminal", t: "new_terminal", l: "new_claude", "\\": "split_terminal",
     };
     const shiftKeys: Record<string, string> = {
-      e: "view_files", f: "view_search", g: "view_git", c: "view_claude", p: "command_palette", s: "save_as",
+      e: "view_files", f: "view_search", g: "view_git", c: "view_claude", p: "command_palette", s: "save_as", m: "show_problems",
     };
     // Capture phase so shortcuts win over Monaco and xterm
     const onKey = (e: KeyboardEvent) => {
@@ -597,6 +639,8 @@ export default function App() {
     { id: "toggle_sidebar", label: "Görünüm: Kenar çubuğunu aç/kapat", shortcut: "⌘B", run: () => runAction("toggle_sidebar") },
     { id: "toggle_terminal", label: "Terminal: Aç/kapat", shortcut: "⌘J", run: () => runAction("toggle_terminal") },
     { id: "new_terminal", label: "Terminal: Yeni terminal", shortcut: "⌘T", run: () => runAction("new_terminal") },
+    { id: "split_terminal", label: "Terminal: Böl", shortcut: "⌘\\", run: () => runAction("split_terminal") },
+    { id: "show_problems", label: "Görünüm: Sorunlar", shortcut: "⌘⇧M", run: () => runAction("show_problems") },
     { id: "zoom_in", label: "Yazıyı büyüt", shortcut: "⌘+", run: () => zoom(1) },
     { id: "zoom_out", label: "Yazıyı küçült", shortcut: "⌘-", run: () => zoom(-1) },
     { id: "zoom_reset", label: "Yazı boyutunu sıfırla", shortcut: "⌘0", run: () => zoom("reset") },
@@ -615,8 +659,11 @@ export default function App() {
 
   const editorHandlers = {
     onClose: closeTab,
+    // Editing a preview tab pins it
     onChange: (path: string, content: string) =>
-      setTabs((ts) => ts.map((t) => (t.id === path && t.kind === "file" ? { ...t, content } : t))),
+      setTabs((ts) => ts.map((t) => (t.id === path && t.kind === "file" ? { ...t, content, preview: false } : t))),
+    onPin: pinTab,
+    gitKey: `${gitStatus?.branch}|${gitStatus?.ahead}|${gitStatus?.changes.map((c) => c.rel + c.status).join(",")}`,
     onCursor: (l: number, c: number) => setCursor([l, c]),
     onMoveTab: moveTab,
     onNewFile: newFile,
@@ -775,7 +822,7 @@ export default function App() {
             )}
           </div>
           {/* Kept mounted while hidden so shells keep running */}
-          <div style={{ display: panelOpen && terms.length ? "contents" : "none" }}>
+          <div style={{ display: panelOpen && (terms.length || panelView === "problems") ? "contents" : "none" }}>
             <Resizer dir="y" onDrag={(d) => setPanelH((h) => clamp(h - d, 100, 800))} />
             <div className="main-panel" style={{ height: panelH }}>
               <TerminalPanel
@@ -783,6 +830,23 @@ export default function App() {
                 activeId={panelOpen ? activeTerm : null}
                 onSelect={setActiveTerm}
                 onNew={() => newTerminal()}
+                onSplit={splitTerminal}
+                onClosePane={closePane}
+                view={panelView}
+                onView={(v) => {
+                  setPanelView(v);
+                  if (v === "terminal" && terms.length === 0) newTerminal();
+                }}
+                problemCount={problems.length}
+                problems={
+                  <ProblemsList
+                    problems={problems}
+                    root={root}
+                    onOpen={async (p) => {
+                      if (await openFile(p.path)) setReveal({ path: p.path, line: p.line, start: p.col - 1, end: p.endCol - 1, nonce: Date.now() });
+                    }}
+                  />
+                }
                 onClose={closeTerminal}
                 onHide={() => setPanelOpen(false)}
               />
@@ -821,6 +885,11 @@ export default function App() {
       <StatusBar
         left={[
           ...(branchLabel ? [branchLabel] : []),
+          {
+            label: `⊗ ${problems.filter((p) => p.severity === "error").length}  ⚠ ${problems.filter((p) => p.severity === "warning").length}`,
+            title: "Sorunlar (⌘⇧M)",
+            onClick: () => runAction("show_problems"),
+          },
           root.replace(/^\/Users\/[^/]+/, "~"),
           ...(error ? [`⚠ ${error}`] : []),
         ]}
@@ -830,10 +899,36 @@ export default function App() {
             : []
         }
         toggles={[
-          { label: "Terminal", title: "Terminali aç/kapat (⌘J)", on: panelOpen && terms.length > 0, fn: togglePanel },
+          { label: "Terminal", title: "Terminali aç/kapat (⌘J)", on: panelOpen && panelView === "terminal" && terms.length > 0, fn: togglePanel },
           { label: "✦ Claude", title: "Yeni Claude oturumu (⌘L)", on: false, fn: () => openClaude() },
         ]}
       />
+    </div>
+  );
+}
+
+function ProblemsList({ problems, root, onOpen }: { problems: Problem[]; root: string; onOpen: (p: Problem) => void }) {
+  if (!problems.length) return <div className="git-none">Açık dosyalarda sorun bulunmadı.</div>;
+  const byFile = new Map<string, Problem[]>();
+  problems.forEach((p) => byFile.set(p.path, [...(byFile.get(p.path) ?? []), p]));
+  return (
+    <div className="problems">
+      {[...byFile.entries()].map(([path, list]) => (
+        <div key={path}>
+          <div className="tree-row change-group-head">
+            <span>{basename(path)}</span>
+            <span className="change-dir">{relativeTo(root, dirname(path))}</span>
+            <span className="search-count">{list.length}</span>
+          </div>
+          {list.map((p, i) => (
+            <div key={i} className="tree-row problem-row" onClick={() => onOpen(p)}>
+              <span className={`problem-icon ${p.severity}`}>{p.severity === "error" ? "⊗" : p.severity === "warning" ? "⚠" : "ⓘ"}</span>
+              <span className="problem-msg">{p.message}</span>
+              <span className="problem-src">{p.source ? `${p.source} ` : ""}[{p.line}, {p.col}]</span>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

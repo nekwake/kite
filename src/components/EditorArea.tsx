@@ -1,11 +1,12 @@
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import Editor, { DiffEditor } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { languageFor } from "../lib/monaco";
 import { isDirty, Tab, TabGroup, tabTitle } from "../lib/tabs";
 import { useSettings } from "../lib/settings";
 import { FileIcon } from "../lib/fileIcons";
-import { basename } from "../lib/api";
+import { basename, git } from "../lib/api";
+import { gutterDecorations, lineChanges } from "../lib/gitGutter";
 import { startDrag } from "../lib/drag";
 import { KiteMark } from "./KiteLogo";
 import { TerminalSlot } from "./TerminalPanel";
@@ -32,6 +33,9 @@ type Props = {
   renderHistory: () => ReactNode;
   root: string;
   onTabMenu: (e: React.MouseEvent, tab: Tab) => void;
+  onPin: (id: string) => void;
+  /** Changes whenever the repo state does, to refresh gutter markers */
+  gitKey: string;
 };
 
 const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
@@ -76,6 +80,35 @@ export function EditorArea(props: Props) {
   useEffect(() => {
     if (!activeFile) editorRef.current = null;
   }, [activeFile]);
+
+  // Git gutter: the index version of the file is the baseline
+  const [base, setBase] = useState<{ path: string; text: string | null } | null>(null);
+  const filePath = activeFile && !activeFile.untitled ? activeFile.path : null;
+  useEffect(() => {
+    if (!filePath || !root) return setBase(null);
+    let live = true;
+    git
+      .fileVersions(root, filePath, false)
+      .then((v) => live && setBase({ path: filePath, text: v.original }))
+      .catch(() => live && setBase({ path: filePath, text: null }));
+    return () => {
+      live = false;
+    };
+  }, [filePath, root, props.gitKey]);
+
+  const gutterIds = useRef(new Map<string, string[]>());
+  // Bumped when Monaco mounts, so markers also appear on a freshly opened editor
+  const [editorTick, setEditorTick] = useState(0);
+  const content = activeFile?.content;
+  useEffect(() => {
+    const model = editorRef.current?.getModel();
+    if (!model || !base || base.path !== filePath || model.uri.path !== filePath) return;
+    const t = setTimeout(() => {
+      const decos = base.text === null ? [] : gutterDecorations(lineChanges(base.text, model.getValue()));
+      gutterIds.current.set(filePath, model.deltaDecorations(gutterIds.current.get(filePath) ?? [], decos));
+    }, 200);
+    return () => clearTimeout(t);
+  }, [base, content, filePath, editorTick]);
 
   const dragTab = (e: React.PointerEvent, t: Tab) =>
     startDrag(
@@ -123,12 +156,13 @@ export function EditorArea(props: Props) {
         {tabs.map((t) => (
           <div
             key={t.id}
-            className={`tab ${t.id === activeId ? "active" : ""} tab-${t.kind}`}
+            className={`tab ${t.id === activeId ? "active" : ""} tab-${t.kind} ${t.kind === "file" && t.preview ? "preview" : ""}`}
             data-tab-drop={group}
             data-tab-before={t.id}
             onPointerDown={(e) => dragTab(e, t)}
             onClick={() => onSelect(t.id)}
             onAuxClick={(e) => e.button === 1 && onClose(t.id)}
+            onDoubleClick={() => props.onPin(t.id)}
             onContextMenu={(e) => onTabMenu(e, t)}
             title={t.kind === "history" ? undefined : t.kind === "terminal" ? t.cwd : t.kind === "file" && t.untitled ? undefined : t.path}
           >
@@ -183,6 +217,7 @@ export function EditorArea(props: Props) {
             onChange={(v) => onChange(active.path, v ?? "")}
             onMount={(editor) => {
               editorRef.current = editor;
+              setEditorTick((n) => n + 1);
               // A jump requested before the editor existed (first file opened from search)
               const r = revealRef.current;
               if (r && r.path === editor.getModel()?.uri.path) applyReveal(editor, r);

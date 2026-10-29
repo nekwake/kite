@@ -11,6 +11,8 @@ export type FileTab = {
   saved: string;
   /** New file not on disk yet; ⌘S asks where to save it */
   untitled?: boolean;
+  /** Opened with a single click; replaced by the next one until edited or pinned */
+  preview?: boolean;
   group?: TabGroup;
 };
 

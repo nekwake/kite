@@ -30,6 +30,7 @@ grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
 notify = "8"
 trash = "5.2.9"
+tauri-plugin-single-instance = "2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

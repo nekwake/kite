@@ -13,6 +13,10 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be registered first so a second launch exits before doing anything
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            window::on_second_instance(app, argv, cwd);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())

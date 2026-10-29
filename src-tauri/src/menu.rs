@@ -58,6 +58,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&item("toggle_sidebar", "Kenar Çubuğunu Aç/Kapat", "CmdOrCtrl+B")?)
         .item(&item("toggle_terminal", "Terminali Aç/Kapat", "CmdOrCtrl+J")?)
         .item(&item("new_terminal", "Yeni Terminal", "CmdOrCtrl+T")?)
+        .item(&item("split_terminal", "Terminali Böl", "CmdOrCtrl+Backslash")?)
+        .item(&item("show_problems", "Sorunlar", "CmdOrCtrl+Shift+M")?)
         .item(&item("new_claude", "Yeni Claude Oturumu", "CmdOrCtrl+L")?)
         .separator()
         .item(&item("zoom_in", "Yakınlaştır", "CmdOrCtrl+=")?)
@@ -84,7 +86,7 @@ pub fn forward_events(app: &AppHandle) {
         if id == "new_window" {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
-                let _ = crate::window::open_window(app).await;
+                let _ = crate::window::open_window(app, None).await;
             });
             return;
         }

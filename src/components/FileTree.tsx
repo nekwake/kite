@@ -9,7 +9,7 @@ import { MenuItem } from "./ContextMenu";
 type Props = {
   root: string;
   activePath: string | null;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, preview?: boolean) => void;
   decorations: { files: Map<string, string>; dirs: Set<string> };
   openMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
   onRenamed: (from: string, to: string) => void;
@@ -204,8 +204,9 @@ export function FileTree(props: Props) {
                 onClick={() => {
                   setSelected(entry.path);
                   if (entry.isDir) toggle(entry.path);
-                  else onOpenFile(entry.path);
+                  else onOpenFile(entry.path, true);
                 }}
+                onDoubleClick={() => !entry.isDir && onOpenFile(entry.path)}
                 onContextMenu={(e) => {
                   setSelected(entry.path);
                   openMenu(e, menuFor(entry));

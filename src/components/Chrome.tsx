@@ -70,10 +70,20 @@ function Icon({ name }: { name: keyof typeof icons }) {
 
 type Toggle = { label: string; title: string; on: boolean; fn: () => void };
 
-export function StatusBar({ left, right, toggles }: { left: string[]; right: string[]; toggles: Toggle[] }) {
+type StatusItem = string | { label: string; title: string; onClick: () => void };
+
+export function StatusBar({ left, right, toggles }: { left: StatusItem[]; right: string[]; toggles: Toggle[] }) {
   return (
     <div className="statusbar">
-      <div>{left.map((s) => <span key={s}>{s}</span>)}</div>
+      <div>
+        {left.map((s) =>
+          typeof s === "string" ? (
+            <span key={s}>{s}</span>
+          ) : (
+            <button key={s.label} className="status-toggle" title={s.title} onClick={s.onClick}>{s.label}</button>
+          ),
+        )}
+      </div>
       <div>
         {right.map((s) => <span key={s}>{s}</span>)}
         <span className="status-toggles">
