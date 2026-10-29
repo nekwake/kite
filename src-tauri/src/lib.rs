@@ -1,3 +1,4 @@
+mod claude;
 mod fs;
 mod git;
 mod menu;
@@ -10,6 +11,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
+        .manage(claude::ClaudeState::default())
         .setup(|app| {
             app.set_menu(menu::build(app.handle())?)?;
             menu::forward_events(app.handle());
@@ -38,6 +40,7 @@ pub fn run() {
             git::git_sync,
             git::git_log,
             git::git_commit_files,
+            claude::claude_sessions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

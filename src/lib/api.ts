@@ -53,6 +53,22 @@ export type Commit = {
   subject: string;
 };
 
+export type ClaudeSession = {
+  id: string;
+  title: string;
+  lastPrompt: string | null;
+  cwd: string;
+  cwdExists: boolean;
+  branch: string | null;
+  entrypoint: string | null;
+  prompts: number;
+  updated: number;
+};
+
+export const claude = {
+  sessions: (root: string | null) => invoke<ClaudeSession[]>("claude_sessions", { root }),
+};
+
 export const git = {
   status: (root: string) => invoke<GitStatus>("git_status", { root }),
   fileVersions: (root: string, path: string, staged: boolean, rev?: string) =>

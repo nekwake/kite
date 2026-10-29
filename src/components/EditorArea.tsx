@@ -4,6 +4,7 @@ import type * as monaco from "monaco-editor";
 import { languageFor } from "../lib/monaco";
 import { isDirty, Tab, tabTitle } from "../lib/tabs";
 import { KiteMark } from "./KiteLogo";
+import { TerminalView } from "./TerminalPanel";
 
 /** Jump target; `nonce` makes repeated jumps to the same spot fire again */
 export type Reveal = { path: string; line: number; start: number; end: number; nonce: number };
@@ -68,7 +69,8 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
           <span>Kenar çubuğu</span><kbd>⌘B</kbd>
           <span>Terminal</span><kbd>⌘J</kbd>
           <span>Yeni terminal</span><kbd>⌘T</kbd>
-          <span>Agent paneli</span><kbd>⌘L</kbd>
+          <span>Yeni Claude oturumu</span><kbd>⌘L</kbd>
+          <span>Claude oturumları</span><kbd>⌘⇧C</kbd>
           <span>Ayarlar</span><kbd>⌘,</kbd>
         </div>
       </div>
@@ -84,10 +86,11 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
             className={`tab ${t.id === activeId ? "active" : ""} tab-${t.kind}`}
             onClick={() => onSelect(t.id)}
             onAuxClick={(e) => e.button === 1 && onClose(t.id)}
-            title={t.kind === "history" ? undefined : t.path}
+            title={t.kind === "history" ? undefined : t.kind === "terminal" ? t.cwd : t.path}
           >
             {t.kind === "diff" && <span className="tab-icon">±</span>}
             {t.kind === "history" && <span className="tab-icon">⎇</span>}
+            {t.kind === "terminal" && <span className="tab-icon tab-icon-claude">✦</span>}
             <span>{tabTitle(t)}</span>
             <button
               className={`tab-close ${isDirty(t) ? "dirty" : ""}`}
@@ -144,6 +147,15 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
           />
         )}
         {active.kind === "history" && renderHistory()}
+        {/* Terminal tabs stay mounted while hidden so their sessions keep running */}
+        {tabs.map(
+          (t) =>
+            t.kind === "terminal" && (
+              <div key={t.id} className="center-terminal" style={{ display: t.id === activeId ? "block" : "none" }}>
+                <TerminalView tab={t} active={t.id === activeId} onExit={() => onClose(t.id)} fontSize={13} />
+              </div>
+            ),
+        )}
       </div>
     </div>
   );

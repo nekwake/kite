@@ -15,7 +15,17 @@ export type DiffTab = {
 
 export type HistoryTab = { kind: "history"; id: string };
 
-export type Tab = FileTab | DiffTab | HistoryTab;
+/** A terminal in the editor area, used for Claude sessions */
+export type TerminalTab = {
+  kind: "terminal";
+  id: string;
+  title: string;
+  cwd: string;
+  command?: string;
+  sessionId?: string;
+};
+
+export type Tab = FileTab | DiffTab | HistoryTab | TerminalTab;
 
 export const HISTORY_TAB_ID = "git:history";
 
@@ -26,6 +36,7 @@ export const isDirty = (t: Tab) => t.kind === "file" && t.content !== t.saved;
 
 export function tabTitle(t: Tab): string {
   if (t.kind === "history") return "Git Geçmişi";
+  if (t.kind === "terminal") return t.title;
   if (t.kind === "file") return basename(t.path);
   const where = t.source.rev ? t.source.rev.slice(0, 7) : t.source.staged ? "Hazırlanan" : "Çalışma";
   return `${basename(t.path)} (${where})`;

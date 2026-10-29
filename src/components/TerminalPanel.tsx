@@ -74,7 +74,9 @@ const THEME = {
   brightCyan: "#29b8db", brightWhite: "#ffffff",
 };
 
-function TerminalView({ tab, active, onExit }: { tab: TermTab; active: boolean; onExit: () => void }) {
+type ViewProps = { tab: Pick<TermTab, "cwd" | "command">; active: boolean; onExit: () => void; fontSize?: number };
+
+export function TerminalView({ tab, active, onExit, fontSize = 12.5 }: ViewProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -84,7 +86,7 @@ function TerminalView({ tab, active, onExit }: { tab: TermTab; active: boolean; 
   useEffect(() => {
     const term = new Terminal({
       fontFamily: "'SF Mono', Menlo, monospace",
-      fontSize: 12.5,
+      fontSize,
       lineHeight: 1.2,
       cursorBlink: true,
       allowProposedApi: true,

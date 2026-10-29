@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { api, basename, FileChange, git } from "./lib/api";
+import { api, basename, ClaudeSession, FileChange, git } from "./lib/api";
 import { languageFor } from "./lib/monaco";
 import { diffTabId, DiffSource, FileTab, HISTORY_TAB_ID, isDirty, Tab, tabTitle } from "./lib/tabs";
 import { useGitStatus } from "./lib/useGitStatus";
@@ -15,7 +15,8 @@ import { GitHistory } from "./components/GitHistory";
 import { KiteMark } from "./components/KiteLogo";
 import { Settings } from "./components/Settings";
 import { TerminalPanel, TermTab } from "./components/TerminalPanel";
-import { ActivityBar, AgentPanel, Resizer, StatusBar, TitleBar, View } from "./components/Chrome";
+import { ActivityBar, Resizer, StatusBar, TitleBar, View } from "./components/Chrome";
+import { ClaudeSessions } from "./components/ClaudeSessions";
 
 const LAST_ROOT_KEY = "kite.lastRoot";
 
@@ -48,10 +49,9 @@ export default function App() {
   const [view, setView] = useState<View>("files");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [agentOpen, setAgentOpen] = useState(false);
   const [sidebarW, setSidebarW] = useState(260);
   const [panelH, setPanelH] = useState(260);
-  const [agentW, setAgentW] = useState(360);
+  const nextCenterTerm = useRef(1);
 
   const { status: gitStatus, refresh: refreshGit } = useGitStatus(root);
 
@@ -162,6 +162,29 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
+  // Claude sessions run in big terminal tabs in the editor area
+  const openClaude = (session?: ClaudeSession) => {
+    if (!root) return;
+    const existing = session && tabs.find((t) => t.kind === "terminal" && t.sessionId === session.id);
+    if (existing) {
+      setActiveId(existing.id);
+      return;
+    }
+    addOrFocusTab({
+      kind: "terminal",
+      id: `term:${nextCenterTerm.current++}`,
+      title: session ? (session.title.length > 32 ? `${session.title.slice(0, 32)}…` : session.title) : "Yeni Claude oturumu",
+      cwd: session?.cwd ?? root,
+      command: session ? `claude --resume ${session.id}` : "claude",
+      sessionId: session?.id,
+    });
+  };
+
+  const openSessionIds = useMemo(
+    () => new Set(tabs.flatMap((t) => (t.kind === "terminal" && t.sessionId ? [t.sessionId] : []))),
+    [tabs],
+  );
+
   const showHistory = () => addOrFocusTab({ kind: "history", id: HISTORY_TAB_ID });
 
   // Files reverted by git: reload their tabs unless they hold unsaved edits
@@ -229,10 +252,11 @@ export default function App() {
     view_files: () => root && showView("files"),
     view_search: () => root && showView("search"),
     view_git: () => root && showView("git"),
+    view_claude: () => root && showView("claude"),
+    new_claude: () => openClaude(),
     toggle_sidebar: () => setSidebarOpen((s) => !s),
     toggle_terminal: togglePanel,
     new_terminal: () => newTerminal(),
-    toggle_agent: () => setAgentOpen((a) => !a),
   };
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
@@ -249,9 +273,9 @@ export default function App() {
   useEffect(() => {
     const keys: Record<string, string> = {
       ",": "settings", o: "open_folder", p: "quick_open", s: "save", w: "close_tab",
-      b: "toggle_sidebar", j: "toggle_terminal", t: "new_terminal", l: "toggle_agent",
+      b: "toggle_sidebar", j: "toggle_terminal", t: "new_terminal", l: "new_claude",
     };
-    const shiftKeys: Record<string, string> = { e: "view_files", f: "view_search", g: "view_git" };
+    const shiftKeys: Record<string, string> = { e: "view_files", f: "view_search", g: "view_git", c: "view_claude" };
     // Capture phase so shortcuts win over Monaco and xterm
     const onKey = (e: KeyboardEvent) => {
       if (!e.metaKey || e.altKey || e.ctrlKey) return;
@@ -306,13 +330,11 @@ export default function App() {
         <ActivityBar
           view={view}
           sidebarOpen={sidebarOpen}
-          agentOpen={agentOpen}
           gitBadge={gitStatus?.changes.length ?? 0}
           onView={(v) => {
             if (v === view && sidebarOpen) setSidebarOpen(false);
             else showView(v);
           }}
-          onToggleAgent={() => setAgentOpen((a) => !a)}
         />
         {sidebarOpen && (
           <>
@@ -333,6 +355,15 @@ export default function App() {
                   onOpenFile={openFile}
                   onShowHistory={showHistory}
                   onDiscarded={reloadFiles}
+                />
+              </div>
+              <div className="sidebar-view" style={{ display: view === "claude" ? "flex" : "none" }}>
+                <ClaudeSessions
+                  root={root}
+                  visible={view === "claude"}
+                  openSessionIds={openSessionIds}
+                  onResume={openClaude}
+                  onNew={() => openClaude()}
                 />
               </div>
             </div>
@@ -369,14 +400,6 @@ export default function App() {
             </div>
           </div>
         </div>
-        {agentOpen && (
-          <>
-            <Resizer dir="x" onDrag={(d) => setAgentW((w) => clamp(w - d, 260, 700))} />
-            <div className="agent-wrap" style={{ width: agentW }}>
-              <AgentPanel onLaunchClaude={() => newTerminal("claude", "claude")} disabled={!root} />
-            </div>
-          </>
-        )}
       </div>
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {quickOpen && (
@@ -395,7 +418,7 @@ export default function App() {
         }
         toggles={[
           { label: "Terminal", title: "Terminali aç/kapat (⌘J)", on: panelOpen && terms.length > 0, fn: togglePanel },
-          { label: "Agent", title: "Agent panelini aç/kapat (⌘L)", on: agentOpen, fn: () => setAgentOpen((a) => !a) },
+          { label: "✦ Claude", title: "Yeni Claude oturumu (⌘L)", on: false, fn: () => openClaude() },
           { label: "⚙", title: "Ayarlar (⌘,)", on: settingsOpen, fn: () => setSettingsOpen(true) },
         ]}
       />

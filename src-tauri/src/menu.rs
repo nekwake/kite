@@ -47,11 +47,12 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&item("view_files", "Gezgin", "CmdOrCtrl+Shift+E")?)
         .item(&item("view_search", "Arama", "CmdOrCtrl+Shift+F")?)
         .item(&item("view_git", "Kaynak Kontrolü", "CmdOrCtrl+Shift+G")?)
+        .item(&item("view_claude", "Claude Oturumları", "CmdOrCtrl+Shift+C")?)
         .separator()
         .item(&item("toggle_sidebar", "Kenar Çubuğunu Aç/Kapat", "CmdOrCtrl+B")?)
         .item(&item("toggle_terminal", "Terminali Aç/Kapat", "CmdOrCtrl+J")?)
         .item(&item("new_terminal", "Yeni Terminal", "CmdOrCtrl+T")?)
-        .item(&item("toggle_agent", "Agent Panelini Aç/Kapat", "CmdOrCtrl+L")?)
+        .item(&item("new_claude", "Yeni Claude Oturumu", "CmdOrCtrl+L")?)
         .separator()
         .fullscreen()
         .build()?;
