@@ -4,6 +4,7 @@ import { ClaudeAccount, GithubAccount } from "../lib/api";
 import { ACCENT_PRESETS, applyAccent, currentAccent } from "../lib/theme";
 import { DEFAULT_SETTINGS, updateSettings, useSettings } from "../lib/settings";
 import { KiteMark } from "./KiteLogo";
+import { getKey, setKey } from "../lib/openrouter";
 import { t } from "../lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -191,7 +192,7 @@ export function Settings(props: Props) {
         {!gh ? (
           <span className="muted">{t("Kontrol ediliyor…")}</span>
         ) : !gh.installed ? (
-          <span className="muted">{t("gh kurulu değil —")} <code>{t("brew install gh")}</code></span>
+          <span className="muted">{t("gh kurulu değil:")} <code>{t("brew install gh")}</code></span>
         ) : gh.login ? (
           <div className="account">
             {gh.avatarUrl && <img src={gh.avatarUrl} alt="" />}
@@ -220,6 +221,9 @@ export function Settings(props: Props) {
         ) : (
           <button className="primary-btn" onClick={props.onConnectClaude}>{t("Claude'a giriş yap")}</button>
         )}
+      </Row>
+      <Row label="OpenRouter" hint="Ücretsiz modellerle kod okuyabilen sohbet (⌘⇧L). Anahtar macOS Anahtar Zinciri'nde durur">
+        <OpenRouterKey />
       </Row>
       {!q && (
         <div className="set-note">
@@ -304,6 +308,32 @@ export function Settings(props: Props) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function OpenRouterKey() {
+  const [has, setHas] = useState<boolean | null>(null);
+  const [value, setValue] = useState("");
+  useEffect(() => {
+    getKey().then((k) => setHas(!!k)).catch(() => setHas(false));
+  }, []);
+  if (has === null) return <span className="muted">{t("Kontrol ediliyor…")}</span>;
+  if (has) {
+    return (
+      <div className="account">
+        <span className="account-mark">✓</span>
+        <div>
+          <b>{t("Anahtar kayıtlı")}</b>
+          <button className="link-btn" style={{ padding: 0 }} onClick={() => setKey("").then(() => setHas(false))}>{t("Kaldır")}</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="key-input">
+      <input className="search-input" type="password" placeholder="sk-or-v1-…" value={value} onChange={(e) => setValue(e.target.value)} />
+      <button className="primary-btn" disabled={!value.trim()} onClick={() => setKey(value.trim()).then(() => setHas(true))}>{t("Kaydet")}</button>
     </div>
   );
 }

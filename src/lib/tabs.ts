@@ -41,7 +41,10 @@ export type TerminalTab = {
   group?: TabGroup;
 };
 
-export type Tab = FileTab | DiffTab | HistoryTab | TerminalTab;
+/** OpenRouter chat; its messages live in chatStore */
+export type ChatTab = { kind: "chat"; id: string; title: string; group?: TabGroup };
+
+export type Tab = FileTab | DiffTab | HistoryTab | TerminalTab | ChatTab;
 
 export const HISTORY_TAB_ID = "git:history";
 
@@ -54,7 +57,7 @@ export const groupOf = (t: Tab): TabGroup => t.group ?? "main";
 
 export function tabTitle(t: Tab): string {
   if (t.kind === "history") return "Git Geçmişi";
-  if (t.kind === "terminal") return t.title;
+  if (t.kind === "terminal" || t.kind === "chat") return t.title;
   if (t.kind === "file") return basename(t.path);
   const where = t.source.rev ? t.source.rev.slice(0, 7) : t.source.staged ? "Hazırlanan" : "Çalışma";
   return `${basename(t.path)} (${where})`;

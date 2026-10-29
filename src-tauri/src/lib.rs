@@ -5,6 +5,7 @@ mod git;
 mod menu;
 mod pty;
 mod search;
+mod secrets;
 mod watch;
 mod window;
 
@@ -70,6 +71,8 @@ pub fn run() {
             accounts::github_publish,
             window::open_window,
             menu::set_menu_language,
+            secrets::secret_get,
+            secrets::secret_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

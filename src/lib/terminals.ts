@@ -101,7 +101,7 @@ export function createTerminal(opts: { cwd: string; command?: string; onExit: ()
 
   // Notifications: OSC 9 (iTerm2, used by Claude Code), OSC 777 (rxvt), and the bell
   const isClaude = !!opts.command?.startsWith("claude");
-  const who = isClaude ? "Claude" : `Terminal — ${opts.cwd.split("/").pop()}`;
+  const who = isClaude ? "Claude" : `Terminal · ${opts.cwd.split("/").pop()}`;
   term.parser.registerOscHandler(9, (data) => {
     // OSC 9;4 is progress reporting, not a message
     if (!/^\d+;/.test(data)) notifyFromTerminal(who, data);

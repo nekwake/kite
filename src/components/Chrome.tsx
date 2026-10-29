@@ -52,9 +52,10 @@ type ActivityProps = {
   gitBadge: number;
   onView: (v: View) => void;
   onSettings: () => void;
+  onChat: () => void;
 };
 
-export function ActivityBar({ view, sidebarOpen, gitBadge, onView, onSettings }: ActivityProps) {
+export function ActivityBar({ view, sidebarOpen, gitBadge, onView, onSettings, onChat }: ActivityProps) {
   const item = (v: View, title: string, badge = 0) => (
     <button
       className={`activity-item ${sidebarOpen && view === v ? "active" : ""}`}
@@ -71,6 +72,9 @@ export function ActivityBar({ view, sidebarOpen, gitBadge, onView, onSettings }:
       {item("search", "Ara (⌘⇧F)")}
       {item("git", "Kaynak kontrolü (⌘⇧G)", gitBadge)}
       {item("claude", "Claude oturumları (⌘⇧C)")}
+      <button className="activity-item" title={t("OpenRouter sohbeti (⌘⇧L)")} onClick={onChat}>
+        <LineIcon name="chat" size={20} />
+      </button>
       <div style={{ flex: 1 }} />
       <button className="activity-item" title={t("Ayarlar (⌘,)")} onClick={onSettings}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">

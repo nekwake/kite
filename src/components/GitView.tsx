@@ -193,7 +193,7 @@ export function GitView(props: Props) {
       <div className="git-commit">
         <textarea
           className="git-message"
-          placeholder={`Commit mesajı (⌘↵ ile commit)${branches?.current ? ` — ${branches.current}` : ""}`}
+          placeholder={`Commit mesajı (⌘↵ ile commit)${branches?.current ? ` · ${branches.current}` : ""}`}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
@@ -274,10 +274,10 @@ export function GitView(props: Props) {
             {hasRemote && (
               <>
                 <button className="icon-btn" title={t("Uzak depodan getir (fetch)")} disabled={!!busy} onClick={() => run("fetch", () => git.sync(root, "fetch"))}><Icon name="fetch" /></button>
-                <button className="icon-btn" title={`Çek (pull)${status.behind ? ` — ${status.behind} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("pull", () => git.sync(root, "pull"))}>
+                <button className="icon-btn" title={`Çek (pull)${status.behind ? `: ${status.behind} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("pull", () => git.sync(root, "pull"))}>
                   <Icon name="pull" />{status.behind || ""}
                 </button>
-                <button className="icon-btn" title={`Gönder (push)${status.ahead ? ` — ${status.ahead} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("push", () => git.sync(root, "push"))}>
+                <button className="icon-btn" title={`Gönder (push)${status.ahead ? `: ${status.ahead} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("push", () => git.sync(root, "push"))}>
                   <Icon name="push" />{status.ahead || ""}
                 </button>
               </>

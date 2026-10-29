@@ -26,6 +26,7 @@ const PATHS = {
   layoutLeft: "M3 4h18v16H3zM14 4v16M3 14h11",
   bell: "M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10.3 21a2 2 0 0 0 3.4 0",
   download: "M12 4v12M7 11l5 5 5-5M5 20h14",
+  chat: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z",
 } as const;
 
 export type IconName = keyof typeof PATHS;

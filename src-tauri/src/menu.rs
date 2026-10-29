@@ -64,6 +64,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, lang: &str) -> tauri::Result<Menu<R
         .item(&item("split_terminal", l("Terminali Böl", "Split Terminal"), "CmdOrCtrl+Backslash")?)
         .item(&item("show_problems", l("Sorunlar", "Problems"), "CmdOrCtrl+Shift+M")?)
         .item(&item("new_claude", l("Yeni Claude Oturumu", "New Claude Session"), "CmdOrCtrl+L")?)
+        .item(&item("new_chat", l("Yeni OpenRouter Sohbeti", "New OpenRouter Chat"), "CmdOrCtrl+Shift+L")?)
         .separator()
         .item(&item("zoom_in", l("Yakınlaştır", "Zoom In"), "CmdOrCtrl+=")?)
         .item(&item("zoom_out", l("Uzaklaştır", "Zoom Out"), "CmdOrCtrl+-")?)

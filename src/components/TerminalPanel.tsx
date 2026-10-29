@@ -77,7 +77,7 @@ export function TerminalPanel(props: Props) {
           {view === "terminal" && (
             <>
               <button className="icon-btn" onClick={props.onNew} title={tr("Yeni terminal (⌘T)")}><Icon name="plus" /></button>
-              <button className="icon-btn" onClick={props.onSplit} title={tr("Terminali böl (⌘\)")} disabled={!tabs.length}>
+              <button className="icon-btn" onClick={props.onSplit} title={tr("Terminali böl (⌘\\)")} disabled={!tabs.length}>
                 <Icon name="split" />
               </button>
               <button

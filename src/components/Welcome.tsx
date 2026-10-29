@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { basename, dirname } from "../lib/api";
 import { KiteLoader } from "./KiteLogo";
 import { t } from "../lib/i18n";
+import { getVersion } from "@tauri-apps/api/app";
+import { inTauri } from "../lib/events";
+import { RELEASES } from "../lib/changelog";
 
 type Fact = { text: string; source: string } | "offline" | null;
 
@@ -21,12 +24,22 @@ function useFact(): Fact {
   return fact;
 }
 
+/** Notes for the running version (falls back to the newest entry) */
+function useReleaseNotes() {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (inTauri) getVersion().then(setVersion).catch(() => {});
+  }, []);
+  return RELEASES.find((r) => r.version === version) ?? RELEASES[0];
+}
+
 export function Welcome({ recent, onOpenFolder, onOpenRecent }: {
   recent: string[];
   onOpenFolder: () => void;
   onOpenRecent: (dir: string) => void;
 }) {
   const fact = useFact();
+  const release = useReleaseNotes();
   return (
     <div className="welcome">
       <div className="welcome-kite">
@@ -45,14 +58,19 @@ export function Welcome({ recent, onOpenFolder, onOpenRecent }: {
           ))}
         </div>
       )}
+      {release && (
+        <div className="changelog">
+          <div className="recent-title">{t("YENİLİKLER")} · v{release.version}</div>
+          <ul>
+            {release.notes.map((n) => <li key={n}>{n}</li>)}
+          </ul>
+        </div>
+      )}
       <div className="fact">
-        {fact === null ? null : fact === "offline" ? (
-          <span className="fact-offline"><span className="dot off" /> {t("Çevrimdışı — internet bağlantısı yok gibi görünüyor")}</span>
+        {fact === "offline" ? (
+          <span className="fact-offline">{t("İnternet bağlantınızı kontrol edin")}</span>
         ) : (
-          <>
-            <span className="fact-label"><span className="dot on" /> {t("Gereksiz bilgi")}</span>
-            <p>{fact.text}</p>
-          </>
+          fact && <p>{fact.text}</p>
         )}
       </div>
     </div>

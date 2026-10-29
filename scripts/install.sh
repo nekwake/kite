@@ -7,4 +7,4 @@ rm -rf /Applications/Kite.app
 cp -R src-tauri/target/release/bundle/macos/Kite.app /Applications/
 mkdir -p "$HOME/.local/bin"
 install -m 755 scripts/kite "$HOME/.local/bin/kite"
-echo "Kite kuruldu: /Applications/Kite.app — 'kite .' ile bir klasör aç."
+echo "Kite kuruldu: /Applications/Kite.app. Bir klasör açmak için: kite ."

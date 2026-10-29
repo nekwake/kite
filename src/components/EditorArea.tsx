@@ -33,6 +33,7 @@ type Props = {
   onTerminalExit: (id: string) => void;
   reveal: Reveal | null;
   renderHistory: () => ReactNode;
+  renderChat: (id: string) => ReactNode;
   root: string;
   onTabMenu: (e: React.MouseEvent, tab: Tab) => void;
   onPin: (id: string) => void;
@@ -166,12 +167,13 @@ export function EditorArea(props: Props) {
             onAuxClick={(e) => e.button === 1 && onClose(t.id)}
             onDoubleClick={() => props.onPin(t.id)}
             onContextMenu={(e) => onTabMenu(e, t)}
-            title={t.kind === "history" ? undefined : t.kind === "terminal" ? t.cwd : t.kind === "file" && t.untitled ? undefined : t.path}
+            title={t.kind === "history" || t.kind === "chat" ? undefined : t.kind === "terminal" ? t.cwd : t.kind === "file" && t.untitled ? undefined : t.path}
           >
             {t.kind === "file" && (t.untitled ? <Icon name="file" size={15} className="tab-icon" /> : <FileIcon name={basename(t.path)} />)}
             {t.kind === "diff" && <span className="tab-icon">±</span>}
             {t.kind === "history" && <Icon name="history" size={15} className="tab-icon" />}
             {t.kind === "terminal" && <Icon name="sparkle" size={15} className="tab-icon tab-icon-claude" />}
+            {t.kind === "chat" && <Icon name="chat" size={15} className="tab-icon tab-icon-claude" />}
             <span>{tabTitle(t)}</span>
             <button
               className={`tab-close ${isDirty(t) ? "dirty" : ""}`}
@@ -248,6 +250,7 @@ export function EditorArea(props: Props) {
           />
         )}
         {active.kind === "history" && renderHistory()}
+        {active.kind === "chat" && <div className="chat-host" key={active.id}>{props.renderChat(active.id)}</div>}
         {/* Terminal tabs stay attached while hidden so their sessions keep running */}
         {tabs.map(
           (t) =>

@@ -23,6 +23,8 @@ import { GitHistory } from "./components/GitHistory";
 import { Icon } from "./lib/icons";
 import { Settings } from "./components/Settings";
 import { Welcome } from "./components/Welcome";
+import { ChatView } from "./components/ChatView";
+import { dropChat } from "./lib/chatStore";
 import { PanelView, TerminalPanel, TermTab } from "./components/TerminalPanel";
 import { Problem, useProblems } from "./lib/problems";
 import { useUpdate } from "./lib/updater";
@@ -333,6 +335,15 @@ export default function App() {
     newTerminal({ command: "gh auth login --web --git-protocol https && gh auth setup-git", title: "GitHub girişi" });
   const connectClaude = () => newTerminal({ command: "claude /login", title: "Claude girişi" });
 
+  // OpenRouter chats open beside the code, in the right group
+  const chatSeq = useRef(1);
+  const openChat = () => {
+    const id = `chat:${chatSeq.current++}`;
+    setTabs((ts) => [...ts, { kind: "chat", id, title: "OpenRouter", group: "right" }]);
+    setActiveRight(id);
+    setFocusedGroup("right");
+  };
+
   const showHistory = () => addOrFocusTab({ kind: "history", id: HISTORY_TAB_ID });
 
   // Files reverted by git: reload their tabs unless they hold unsaved edits
@@ -459,6 +470,7 @@ export default function App() {
       if (!ok) return;
     }
     if (tab.kind === "file") monaco.editor.getModels().find((m) => m.uri.path === tab.path)?.dispose();
+    if (tab.kind === "chat") dropChat(tab.id);
     const g = groupOf(tab);
     const inGroup = tabs.filter((t) => groupOf(t) === g);
     const idx = inGroup.findIndex((t) => t.id === id);
@@ -584,6 +596,7 @@ export default function App() {
     view_git: () => root && showView("git"),
     view_claude: () => root && showView("claude"),
     new_claude: () => openClaude(),
+    new_chat: openChat,
     toggle_sidebar: () => setSidebarOpen((s) => !s),
     toggle_terminal: togglePanel,
     new_terminal: () => newTerminal(),
@@ -612,7 +625,7 @@ export default function App() {
       b: "toggle_sidebar", j: "toggle_terminal", t: "new_terminal", l: "new_claude", "\\": "split_terminal",
     };
     const shiftKeys: Record<string, string> = {
-      e: "view_files", f: "view_search", g: "view_git", c: "view_claude", p: "command_palette", s: "save_as", m: "show_problems",
+      e: "view_files", f: "view_search", g: "view_git", c: "view_claude", p: "command_palette", s: "save_as", m: "show_problems", l: "new_chat",
     };
     // Capture phase so shortcuts win over Monaco and xterm
     const onKey = (e: KeyboardEvent) => {
@@ -634,6 +647,7 @@ export default function App() {
 
   const commands: Command[] = [
     { id: "new_claude", label: "Claude: Yeni oturum", shortcut: "⌘L", run: () => runAction("new_claude") },
+    { id: "new_chat", label: "OpenRouter: Yeni sohbet", shortcut: "⌘⇧L", run: openChat },
     { id: "view_claude", label: "Claude: Oturumları göster", shortcut: "⌘⇧C", run: () => runAction("view_claude") },
     { id: "quick_open", label: "Dosyaya git", shortcut: "⌘P", run: () => setTimeout(() => setQuickOpen(""), 0) },
     { id: "goto_line", label: "Satıra git", shortcut: "⌘G", run: () => setTimeout(() => setQuickOpen(":"), 0) },
@@ -667,7 +681,7 @@ export default function App() {
       : []),
     ...recentProjects()
       .filter((p) => p !== root)
-      .map((p) => ({ id: `project:${p}`, label: `Proje aç: ${basename(p)}  —  ${p.replace(/^\/Users\/[^/]+/, "~")}`, run: () => switchRoot(p) })),
+      .map((p) => ({ id: `project:${p}`, label: `Proje aç: ${basename(p)}  ·  ${p.replace(/^\/Users\/[^/]+/, "~")}`, run: () => switchRoot(p) })),
   ];
 
   const editorHandlers = {
@@ -683,6 +697,15 @@ export default function App() {
     onTerminalExit: (id: string) => closeTab(id),
     reveal,
     renderHistory: () => (root ? <GitHistory root={root} onOpenDiff={openDiff} /> : null),
+    renderChat: (id: string) =>
+      root ? (
+        <ChatView
+          id={id}
+          root={root}
+          activeFile={tabs.find((t): t is FileTab => t.kind === "file" && t.id === activeMain && !t.untitled)?.path ?? null}
+          onOpenFile={(p) => openFile(p)}
+        />
+      ) : null,
     root: root ?? "",
     onTabMenu: tabMenu,
   };
@@ -701,7 +724,7 @@ export default function App() {
   // Window title for Mission Control and the Window menu
   useEffect(() => {
     if (!inTauri) return;
-    getCurrentWindow().setTitle(root ? `${basename(root)} — Kite` : "Kite").catch(() => {});
+    getCurrentWindow().setTitle(root ? `${basename(root)} · Kite` : "Kite").catch(() => {});
   }, [root]);
 
   if (!root) {
@@ -742,6 +765,7 @@ export default function App() {
           sidebarOpen={sidebarOpen}
           gitBadge={gitStatus?.changes.length ?? 0}
           onSettings={() => setSettingsOpen(true)}
+          onChat={openChat}
           onView={(v) => {
             if (v === view && sidebarOpen) setSidebarOpen(false);
             else showView(v);
