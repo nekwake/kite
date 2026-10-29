@@ -4,7 +4,10 @@ import { ask, open } from "@tauri-apps/plugin-dialog";
 import { api, basename } from "./lib/api";
 import { languageFor } from "./lib/monaco";
 import { FileTree } from "./components/FileTree";
-import { EditorArea, Tab } from "./components/EditorArea";
+import { EditorArea, Reveal, Tab } from "./components/EditorArea";
+import { QuickOpen } from "./components/QuickOpen";
+import { SearchView } from "./components/SearchView";
+import { KiteMark } from "./components/KiteLogo";
 import { TerminalPanel, TermTab } from "./components/TerminalPanel";
 import { ActivityBar, AgentPanel, Resizer, StatusBar, TitleBar, View } from "./components/Chrome";
 
@@ -26,6 +29,10 @@ export default function App() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const [cursor, setCursor] = useState<[number, number]>([1, 1]);
   const [error, setError] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [searchFocus, setSearchFocus] = useState(0);
 
   const [terms, setTerms] = useState<TermTab[]>([]);
   const [activeTerm, setActiveTerm] = useState<number | null>(null);
@@ -66,6 +73,7 @@ export default function App() {
     setActivePath(null);
     setTerms([]);
     setActiveTerm(null);
+    setRecent([]);
     setRoot(dir);
     setRootSeq((s) => s + 1);
     try {
@@ -92,19 +100,36 @@ export default function App() {
     if (typeof dir === "string") switchRoot(dir);
   }, [switchRoot]);
 
-  const openFile = async (path: string) => {
+  // Most recently focused files first, for the empty ⌘P list
+  useEffect(() => {
+    if (activePath) setRecent((r) => [activePath, ...r.filter((p) => p !== activePath)].slice(0, 20));
+  }, [activePath]);
+
+  const openFile = async (path: string): Promise<boolean> => {
     if (tabs.some((t) => t.path === path)) {
       setActivePath(path);
-      return;
+      return true;
     }
     try {
       const content = await api.readFile(path);
-      setTabs((ts) => [...ts, { path, content, saved: content }]);
+      setTabs((ts) => (ts.some((t) => t.path === path) ? ts : [...ts, { path, content, saved: content }]));
       setActivePath(path);
       setError(null);
+      return true;
     } catch (e) {
       setError(`${basename(path)}: ${e}`);
+      return false;
     }
+  };
+
+  const openMatch = async (path: string, line: number, start: number, end: number) => {
+    if (await openFile(path)) setReveal({ path, line, start, end, nonce: Date.now() });
+  };
+
+  const showSearch = () => {
+    setView("search");
+    setSidebarOpen(true);
+    setSearchFocus((n) => n + 1);
   };
 
   const closeTab = async (path: string) => {
@@ -153,8 +178,12 @@ export default function App() {
       j: togglePanel,
       t: () => newTerminal(),
       l: () => setAgentOpen((a) => !a),
+      p: () => root && setQuickOpen(true),
     };
-    const action = !e.shiftKey && actions[e.key.toLowerCase()];
+    const shiftActions: Record<string, () => void> = {
+      f: () => root && showSearch(),
+    };
+    const action = (e.shiftKey ? shiftActions : actions)[e.key.toLowerCase()];
     if (action) {
       e.preventDefault();
       e.stopPropagation();
@@ -172,7 +201,7 @@ export default function App() {
       <div className="app">
         <TitleBar title="Kite" />
         <div className="welcome">
-          <div className="editor-empty-logo">Kite</div>
+          <div className="brand"><KiteMark size={88} /><span className="wordmark">Kite</span></div>
           <p>Hafif, hızlı, Claude ile entegre kod editörü.</p>
           <button className="primary-btn" onClick={openFolder}>Klasör aç (⌘O)</button>
         </div>
@@ -191,7 +220,8 @@ export default function App() {
           sidebarOpen={sidebarOpen}
           agentOpen={agentOpen}
           onView={(v) => {
-            if (v === view) setSidebarOpen((s) => !s);
+            if (v === view && sidebarOpen) setSidebarOpen(false);
+            else if (v === "search") showSearch();
             else {
               setView(v);
               setSidebarOpen(true);
@@ -202,7 +232,13 @@ export default function App() {
         {sidebarOpen && (
           <>
             <div className="sidebar" style={{ width: sidebarW }}>
-              <FileTree root={root} activePath={activePath} onOpenFile={openFile} />
+              {/* Both stay mounted so the search query survives switching views */}
+              <div className="sidebar-view" style={{ display: view === "files" ? "flex" : "none" }}>
+                <FileTree root={root} activePath={activePath} onOpenFile={openFile} />
+              </div>
+              <div className="sidebar-view" style={{ display: view === "search" ? "flex" : "none" }}>
+                <SearchView root={root} focusNonce={searchFocus} onOpenMatch={openMatch} />
+              </div>
             </div>
             <Resizer dir="x" onDrag={(d) => setSidebarW((w) => clamp(w + d, 160, 600))} />
           </>
@@ -218,6 +254,7 @@ export default function App() {
                 setTabs((ts) => ts.map((t) => (t.path === path ? { ...t, content } : t)))
               }
               onCursor={(l, c) => setCursor([l, c])}
+              reveal={reveal}
             />
           </div>
           {/* Kept mounted while hidden so shells keep running */}
@@ -244,6 +281,9 @@ export default function App() {
           </>
         )}
       </div>
+      {quickOpen && (
+        <QuickOpen root={root} recent={recent} onOpen={openFile} onClose={() => setQuickOpen(false)} />
+      )}
       <StatusBar
         left={[root.replace(/^\/Users\/[^/]+/, "~"), ...(error ? [`⚠ ${error}`] : [])]}
         right={

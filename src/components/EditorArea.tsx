@@ -1,8 +1,14 @@
+import { useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
+import type * as monaco from "monaco-editor";
 import { basename } from "../lib/api";
 import { languageFor } from "../lib/monaco";
+import { KiteMark } from "./KiteLogo";
 
 export type Tab = { path: string; content: string; saved: string };
+
+/** Jump target; `nonce` makes repeated jumps to the same spot fire again */
+export type Reveal = { path: string; line: number; start: number; end: number; nonce: number };
 
 type Props = {
   tabs: Tab[];
@@ -11,16 +17,36 @@ type Props = {
   onClose: (path: string) => void;
   onChange: (path: string, content: string) => void;
   onCursor: (line: number, col: number) => void;
+  reveal: Reveal | null;
 };
 
-export function EditorArea({ tabs, activePath, onSelect, onClose, onChange, onCursor }: Props) {
+export function EditorArea({ tabs, activePath, onSelect, onClose, onChange, onCursor, reveal }: Props) {
   const active = tabs.find((t) => t.path === activePath);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  const revealRef = useRef(reveal);
+  revealRef.current = reveal;
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !reveal || reveal.path !== activePath) return;
+    // Let the editor switch to the new file's model first
+    const t = setTimeout(() => applyReveal(editor, reveal), 0);
+    return () => clearTimeout(t);
+  }, [reveal, activePath]);
+
+  // The editor is unmounted while no tab is open
+  useEffect(() => {
+    if (!active) editorRef.current = null;
+  }, [active]);
 
   if (!active) {
     return (
       <div className="editor-empty">
-        <div className="editor-empty-logo">Kite</div>
+        <div className="brand brand-faded"><KiteMark size={72} /></div>
         <div className="shortcuts">
+          <span>Dosyaya git</span><kbd>⌘P</kbd>
+          <span>Projede ara</span><kbd>⌘⇧F</kbd>
           <span>Klasör aç</span><kbd>⌘O</kbd>
           <span>Kaydet</span><kbd>⌘S</kbd>
           <span>Kenar çubuğu</span><kbd>⌘B</kbd>
@@ -65,6 +91,10 @@ export function EditorArea({ tabs, activePath, onSelect, onClose, onChange, onCu
           defaultLanguage={languageFor(active.path)}
           onChange={(v) => onChange(active.path, v ?? "")}
           onMount={(editor) => {
+            editorRef.current = editor;
+            // A jump requested before the editor existed (first file opened from search)
+            const r = revealRef.current;
+            if (r && r.path === editor.getModel()?.uri.path) applyReveal(editor, r);
             editor.onDidChangeCursorPosition((e) =>
               onCursor(e.position.lineNumber, e.position.column),
             );
@@ -87,4 +117,16 @@ export function EditorArea({ tabs, activePath, onSelect, onClose, onChange, onCu
       </div>
     </div>
   );
+}
+
+function applyReveal(editor: monaco.editor.IStandaloneCodeEditor, r: Reveal) {
+  const range = {
+    startLineNumber: r.line,
+    startColumn: r.start + 1,
+    endLineNumber: r.line,
+    endColumn: r.end + 1,
+  };
+  editor.setSelection(range);
+  editor.revealRangeInCenterIfOutsideViewport(range);
+  editor.focus();
 }

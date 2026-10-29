@@ -45,7 +45,7 @@ export function ActivityBar({ view, sidebarOpen, agentOpen, onView, onToggleAgen
   return (
     <div className="activity-bar">
       {item("files", "Dosyalar (⌘B)")}
-      {item("search", "Arama", true)}
+      {item("search", "Ara (⌘⇧F)")}
       {item("git", "Git", true)}
       <div style={{ flex: 1 }} />
       <button
