@@ -6,7 +6,7 @@
 
 <p align="center">
   A lightweight code editor and terminal for macOS and Windows.<br/>
-  ~10 MB · Tauri 2 + Rust · Monaco · xterm.js
+  ~14 MB download on macOS, ~6 MB on Windows · Tauri 2 + Rust · Monaco · xterm.js
 </p>
 
 <p align="center">

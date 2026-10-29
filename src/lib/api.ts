@@ -110,5 +110,4 @@ export const git = {
   log: (root: string, limit = 300) => invoke<Commit[]>("git_log", { root, limit }),
   commitFiles: (root: string, hash: string) => invoke<FileChange[]>("git_commit_files", { root, hash }),
   commitInfo: (root: string, hash: string) => invoke<CommitInfo>("git_commit_info", { root, hash }),
-  userName: (root: string) => invoke<string | null>("git_user_name", { root }),
 };

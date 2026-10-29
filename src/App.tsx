@@ -30,6 +30,7 @@ import { PanelView, TerminalPanel, TermTab } from "./components/TerminalPanel";
 import { Problem, useProblems } from "./lib/problems";
 import { useUpdate } from "./lib/updater";
 import { formatText, parserFor } from "./lib/format";
+import { pushNotice } from "./lib/notifications";
 import { level, pct, resetTime, useClaudeUsage } from "./lib/usage";
 import { ActivityBar, Resizer, StatusBar, TitleBar, View } from "./components/Chrome";
 import { ClaudeSessions } from "./components/ClaudeSessions";
@@ -92,6 +93,16 @@ export default function App() {
   const settings = useSettings();
   const updater = useUpdate();
   const usage = useClaudeUsage();
+  const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined);
+
+  // Errors shown in the status bar also go to the notification center
+  useEffect(() => {
+    if (error) pushNotice({ kind: "error", title: error });
+  }, [error]);
+
+  useEffect(() => {
+    if (updater.update) pushNotice({ kind: "success", title: `Kite ${updater.update.version}`, body: t("Yeni sürüm hazır. Sağ üstteki Güncelle düğmesiyle yükle.") });
+  }, [updater.update]);
   const updateInfo = updater.update
     ? { version: updater.update.version, progress: updater.progress, onInstall: () => updater.install().catch((e) => setError(String(e))) }
     : null;
@@ -772,7 +783,11 @@ export default function App() {
         <Welcome recent={recentProjects()} onOpenFolder={openFolder} onOpenRecent={switchRoot} />
         {settingsOpen && (
         <Settings
-          onClose={() => setSettingsOpen(false)}
+          initialSection={settingsSection}
+          onClose={() => {
+            setSettingsOpen(false);
+            setSettingsSection(undefined);
+          }}
           github={github}
           claude={claudeAcc}
           onConnectGithub={() => {
@@ -946,7 +961,11 @@ export default function App() {
       </div>
       {settingsOpen && (
         <Settings
-          onClose={() => setSettingsOpen(false)}
+          initialSection={settingsSection}
+          onClose={() => {
+            setSettingsOpen(false);
+            setSettingsSection(undefined);
+          }}
           github={github}
           claude={claudeAcc}
           onConnectGithub={() => {
@@ -988,7 +1007,10 @@ export default function App() {
             ? [`Sat ${cursor[0]}, Süt ${cursor[1]}`, languageFor(activeFile.path), "UTF-8"]
             : []
         }
-        usage={usageBadge(usage)}
+        usage={usageBadge(usage, () => {
+          setSettingsSection("accounts");
+          setSettingsOpen(true);
+        })}
         toggles={[
           { label: <><Icon name="terminal" size={14} /> {t("Terminal")}</>, title: "Terminali aç/kapat (⌘J)", on: panelOpen && panelView === "terminal" && terms.length > 0, fn: togglePanel },
           { label: <><Icon name="sparkle" size={14} /> Claude</>, title: "Yeni Claude oturumu (⌘L)", on: false, fn: () => openClaude() },
@@ -1024,13 +1046,30 @@ function ProblemsList({ problems, root, onOpen }: { problems: Problem[]; root: s
   );
 }
 
-/** "5s %42 · 7g %18" in the status bar once Claude Code has reported usage */
-function usageBadge(usage: ReturnType<typeof useClaudeUsage>) {
-  const r = usage?.enabled ? usage.rateLimits : null;
-  if (!r) return null;
-  const five = pct(r.five_hour);
-  const week = pct(r.seven_day);
-  if (five === null && week === null) return null;
+/**
+ * "5s %42 · 7g %18" once Claude Code has reported usage. Before that, a muted
+ * entry explains what's missing and opens the setting.
+ */
+function usageBadge(usage: ReturnType<typeof useClaudeUsage>, openSetup: () => void) {
+  if (!usage) return null;
+  const r = usage.enabled ? usage.rateLimits : null;
+  const five = pct(r?.five_hour);
+  const week = pct(r?.seven_day);
+  if (!r || (five === null && week === null)) {
+    return (
+      <button
+        className="status-toggle usage-badge muted"
+        onClick={openSetup}
+        title={
+          usage.enabled
+            ? t("Claude limitleri bir Claude Code oturumu çalışınca görünür")
+            : t("Claude limitlerini göstermek için tıkla")
+        }
+      >
+        <Icon name="sparkle" size={12} /> {t("Limitler")}
+      </button>
+    );
+  }
   const fmt = (d: Date | null) =>
     d ? d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "?";
   const title = [

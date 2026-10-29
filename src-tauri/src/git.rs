@@ -355,13 +355,6 @@ pub async fn git_commit_info(root: String, hash: String) -> Result<CommitInfo, S
     Ok(CommitInfo { body, files: num("file"), insertions: num("insertion"), deletions: num("deletion"), web_url })
 }
 
-/// `git config user.name`, to tell your commits from other people's
-#[tauri::command]
-pub async fn git_user_name(root: String) -> Option<String> {
-    let top = toplevel(&root).ok()?;
-    git_str(&top, &["config", "user.name"]).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
-}
-
 #[tauri::command]
 pub async fn git_commit_files(root: String, hash: String) -> Result<Vec<FileChange>, String> {
     let top = toplevel(&root)?;

@@ -8,10 +8,14 @@ import { FileIcon } from "../lib/fileIcons";
 import { KiteLoader } from "./KiteLogo";
 
 const ROW = 26;
+/** Lane spacing: tighter in the sidebar, like VS Code's graph */
 const LANE = 14;
+const COMPACT_LANE = 11;
 const FILE_ROW = 24;
 
-const laneX = (i: number) => 8 + i * LANE;
+const laneX = (i: number, lane = LANE) => 7 + i * lane;
+/** Lanes a row actually uses, so the message starts right after them */
+const rowLanes = (r: GraphRow) => Math.max(r.before.length, r.after.length, r.col + 1);
 const laneColor = (i: number) => LANE_COLORS[i % LANE_COLORS.length];
 
 type Props = {
@@ -28,7 +32,6 @@ export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Commit | null>(null);
   const [files, setFiles] = useState<FileChange[] | null>(null);
-  const [me, setMe] = useState<string | null>(null);
   const hover = useCommitHover(root);
 
   const load = useCallback(async () => {
@@ -43,10 +46,6 @@ export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
   useEffect(() => {
     load();
   }, [load, refreshKey]);
-
-  useEffect(() => {
-    git.userName(root).then(setMe).catch(() => setMe(null));
-  }, [root]);
 
   useEffect(() => {
     if (!selected) return;
@@ -70,13 +69,12 @@ export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
                 onClick={() => setSelected(open ? null : row.commit)}
                 {...hover.handlers(row.commit)}
               >
-                <GraphCell row={row} width={width} />
+                <GraphCell row={row} width={rowLanes(row) * COMPACT_LANE + 4} lane={COMPACT_LANE} />
                 <span className="history-subject">{row.commit.subject}</span>
-                {me && row.commit.author !== me && <span className="history-by">{row.commit.author}</span>}
                 {row.commit.refs.map((r) => <RefChip key={r} name={r} />)}
               </div>
               {open && (
-                <InlineFiles row={row} width={width} files={files} onOpen={(f) => onOpenDiff(f, row.commit.hash)} />
+                <InlineFiles row={row} width={rowLanes(row) * COMPACT_LANE + 4} lane={COMPACT_LANE} files={files} onOpen={(f) => onOpenDiff(f, row.commit.hash)} />
               )}
             </div>
           );
@@ -154,12 +152,12 @@ function FileRow({ f, onOpen, indent = 0 }: { f: FileChange; onOpen: () => void;
 }
 
 /** Files of an expanded commit; the graph's lanes keep running down beside them */
-function InlineFiles({ row, width, files, onOpen }: { row: GraphRow; width: number; files: FileChange[] | null; onOpen: (f: FileChange) => void }) {
+function InlineFiles({ row, width, lane, files, onOpen }: { row: GraphRow; width: number; lane: number; files: FileChange[] | null; onOpen: (f: FileChange) => void }) {
   const height = (files?.length || 1) * FILE_ROW;
   return (
     <div className="history-inline-files">
       <svg className="history-lanes" width={width} height={height} fill="none" strokeWidth="2">
-        {row.after.map((h, i) => h && <path key={i} d={`M${laneX(i)} 0V${height}`} style={{ stroke: laneColor(i) }} />)}
+        {row.after.map((h, i) => h && <path key={i} d={`M${laneX(i, lane)} 0V${height}`} style={{ stroke: laneColor(i) }} />)}
       </svg>
       {files === null ? (
         <div className="history-file" style={{ paddingLeft: width }}><KiteLoader size={14} /></div>
@@ -170,7 +168,8 @@ function InlineFiles({ row, width, files, onOpen }: { row: GraphRow; width: numb
   );
 }
 
-function GraphCell({ row, width }: { row: GraphRow; width: number }) {
+function GraphCell({ row, width, lane = LANE }: { row: GraphRow; width: number; lane?: number }) {
+  const x = (i: number) => laneX(i, lane);
   const mid = ROW / 2;
   const curve = (x1: number, y1: number, x2: number, y2: number) =>
     `M${x1} ${y1} C${x1} ${(y1 + y2) / 2} ${x2} ${(y1 + y2) / 2} ${x2} ${y2}`;
@@ -179,16 +178,16 @@ function GraphCell({ row, width }: { row: GraphRow; width: number }) {
   row.before.forEach((h, i) => {
     if (h === null) return;
     if (h === row.commit.hash) {
-      paths.push(<path key={`in${i}`} d={curve(laneX(i), 0, laneX(row.col), mid)} style={{ stroke: laneColor(i) }} />);
+      paths.push(<path key={`in${i}`} d={curve(x(i), 0, x(row.col), mid)} style={{ stroke: laneColor(i) }} />);
     } else {
       // Lanes waiting for the same commit stay side by side until it is reached
       const j = row.after[i] === h ? i : row.after.indexOf(h);
-      if (j !== -1) paths.push(<path key={`pass${i}`} d={curve(laneX(i), 0, laneX(j), ROW)} style={{ stroke: laneColor(j) }} />);
+      if (j !== -1) paths.push(<path key={`pass${i}`} d={curve(x(i), 0, x(j), ROW)} style={{ stroke: laneColor(j) }} />);
     }
   });
   row.commit.parents.forEach((p, k) => {
     const j = k === 0 && row.after[row.col] === p ? row.col : row.after.indexOf(p);
-    if (j !== -1) paths.push(<path key={`out${k}`} d={curve(laneX(row.col), mid, laneX(j), ROW)} style={{ stroke: laneColor(j) }} />);
+    if (j !== -1) paths.push(<path key={`out${k}`} d={curve(x(row.col), mid, x(j), ROW)} style={{ stroke: laneColor(j) }} />);
   });
 
   const merge = row.commit.parents.length > 1;
@@ -196,9 +195,9 @@ function GraphCell({ row, width }: { row: GraphRow; width: number }) {
     <svg className="graph-cell" width={width} height={ROW} fill="none" strokeWidth="2">
       {paths}
       {merge ? (
-        <circle cx={laneX(row.col)} cy={mid} r="4" fill="#181818" strokeWidth="2" style={{ stroke: laneColor(row.col) }} />
+        <circle cx={x(row.col)} cy={mid} r="4" fill="#181818" strokeWidth="2" style={{ stroke: laneColor(row.col) }} />
       ) : (
-        <circle cx={laneX(row.col)} cy={mid} r="4" style={{ fill: laneColor(row.col) }} stroke="#181818" strokeWidth="2" />
+        <circle cx={x(row.col)} cy={mid} r="4" style={{ fill: laneColor(row.col) }} stroke="#181818" strokeWidth="2" />
       )}
     </svg>
   );

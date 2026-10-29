@@ -1,4 +1,5 @@
 // Small layout pieces: title bar, activity bar, status bar, resizer
+import { NotificationBell } from "./Notifications";
 import { isWindows } from "../lib/platform";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { t } from "../lib/i18n";
@@ -124,6 +125,7 @@ export function StatusBar({ left, right, toggles, usage }: { left: StatusItem[];
             </button>
           ))}
         </span>
+        <NotificationBell />
       </div>
     </div>
   );

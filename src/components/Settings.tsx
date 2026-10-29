@@ -24,6 +24,7 @@ function setLanguage(language: "tr" | "en") {
 }
 
 type Props = {
+  initialSection?: string;
   onClose: () => void;
   github: GithubAccount | null;
   claude: ClaudeAccount | null;
@@ -54,7 +55,7 @@ const SHORTCUTS: [string, string][] = [
 ];
 
 export function Settings(props: Props) {
-  const [section, setSection] = useState<SectionId>("appearance");
+  const [section, setSection] = useState<SectionId>((props.initialSection as SectionId) ?? "appearance");
   const [query, setQuery] = useState("");
   const [accent, setAccent] = useState(currentAccent());
   const s = useSettings();

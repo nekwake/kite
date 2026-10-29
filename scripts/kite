@@ -3,4 +3,7 @@
 # If Kite is already running, the folder opens in a new window there.
 target="${1:-.}"
 dir="$(cd "$target" 2>/dev/null && pwd)" || { echo "kite: klasör bulunamadı: $target" >&2; exit 1; }
-exec open -na Kite --args "$dir"
+# Always the installed copy, never a build folder copy macOS may also know about
+app=/Applications/Kite.app
+[ -d "$app" ] || app=Kite
+exec open -na "$app" --args "$dir"

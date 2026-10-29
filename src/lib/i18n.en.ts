@@ -1,5 +1,16 @@
 // English UI strings, keyed by the Turkish source text. Missing keys fall back to Turkish.
 export const EN: Record<string, string> = {
+  "Bildirimler (rahatsız etme açık)": "Notifications (do not disturb on)",
+  "BİLDİRİMLER": "NOTIFICATIONS",
+  "Rahatsız etme": "Do not disturb",
+  "Rahatsız etme: açık": "Do not disturb: on",
+  "Tümünü temizle": "Clear all",
+  "Yeni bildirim yok": "No new notifications",
+  "Rahatsız etme açık: masaüstü bildirimi gösterilmiyor": "Do not disturb is on: no desktop banners",
+  "Yeni sürüm hazır. Sağ üstteki Güncelle düğmesiyle yükle.": "A new version is ready. Install it with the Update button in the top right.",
+  "Claude limitleri bir Claude Code oturumu çalışınca görünür": "Claude limits appear once a Claude Code session is running",
+  "Claude limitlerini göstermek için tıkla": "Click to show Claude usage limits",
+  "Limitler": "Limits",
   "dosya değişti": "files changed",
   "ekleme": "insertions",
   "silme": "deletions",

@@ -15,6 +15,8 @@ export type Settings = {
   /** Bottom panel spans the whole width, or only the left editor group */
   panelFullWidth: boolean;
   formatOnSave: boolean;
+  /** Keep collecting notifications but show no desktop banners */
+  doNotDisturb: boolean;
 };
 
 const KEY = "kite.settings";
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyOnlyUnfocused: true,
   panelFullWidth: false,
   formatOnSave: false,
+  doNotDisturb: false,
 };
 
 export function loadSettings(): Settings {
