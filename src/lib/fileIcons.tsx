@@ -1,3 +1,5 @@
+import { Icon } from "./icons";
+
 // Small colored glyphs per file type, in the spirit of the Seti icons Cursor ships.
 
 type Icon = { text: string; color: string };
@@ -44,9 +46,10 @@ export function FileIcon({ name, dir, open }: { name: string; dir?: boolean; ope
   }
   const lower = name.toLowerCase();
   const icon = BY_NAME[lower] ?? (lower.startsWith(".env") ? BY_EXT.env : BY_EXT[lower.split(".").pop() ?? ""]);
+  if (!icon) return <Icon name="file" size={15} className="ficon-svg ficon-plain" />;
   return (
-    <span className="ficon" style={{ color: icon?.color ?? "#8a8a8a" }}>
-      {icon?.text ?? "≡"}
+    <span className="ficon" style={{ color: icon.color }}>
+      {icon.text}
     </span>
   );
 }

@@ -1,8 +1,24 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
+import { Icon } from "../lib/icons";
 import { ClaudeAccount, GithubAccount } from "../lib/api";
 import { ACCENT_PRESETS, applyAccent, currentAccent } from "../lib/theme";
 import { DEFAULT_SETTINGS, updateSettings, useSettings } from "../lib/settings";
 import { KiteMark } from "./KiteLogo";
+import { t } from "../lib/i18n";
+import { invoke } from "@tauri-apps/api/core";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+
+async function testNotification() {
+  let ok = await isPermissionGranted();
+  if (!ok) ok = (await requestPermission()) === "granted";
+  if (ok) sendNotification({ title: "Kite", body: t("Bildirimler çalışıyor 🪁") });
+}
+
+function setLanguage(language: "tr" | "en") {
+  updateSettings({ language });
+  // The native menu bar is rebuilt in the new language
+  invoke("set_menu_language", { language }).catch(() => {});
+}
 
 type Props = {
   onClose: () => void;
@@ -13,12 +29,13 @@ type Props = {
   onRefreshAccounts: () => void;
 };
 
-type SectionId = "appearance" | "editor" | "terminal" | "accounts" | "shortcuts" | "about";
+type SectionId = "appearance" | "editor" | "terminal" | "notifications" | "accounts" | "shortcuts" | "about";
 
 const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
   { id: "appearance", label: "Görünüm", icon: "◐" },
   { id: "editor", label: "Editör", icon: "✎" },
   { id: "terminal", label: "Terminal", icon: "›_" },
+  { id: "notifications", label: "Bildirimler", icon: "◔" },
   { id: "accounts", label: "Hesaplar", icon: "◉" },
   { id: "shortcuts", label: "Kısayollar", icon: "⌘" },
   { id: "about", label: "Hakkında", icon: "ⓘ" },
@@ -54,11 +71,11 @@ export function Settings(props: Props) {
   const q = query.trim().toLocaleLowerCase("tr");
   /** While searching, every section shows the rows that match */
   const Row = ({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) =>
-    q && !`${label} ${hint ?? ""}`.toLocaleLowerCase("tr").includes(q) ? null : (
+    q && !`${label} ${hint ?? ""} ${t(label)} ${t(hint ?? "")}`.toLocaleLowerCase("tr").includes(q) ? null : (
       <div className="set-row">
         <div className="set-label">
-          <span>{label}</span>
-          {hint && <small>{hint}</small>}
+          <span>{t(label)}</span>
+          {hint && <small>{t(hint)}</small>}
         </div>
         <div className="set-control">{children}</div>
       </div>
@@ -80,7 +97,16 @@ export function Settings(props: Props) {
 
   const appearance = (
     <>
-      <Row label="Vurgu rengi" hint="Düğmeler, aktif sekme, imleç ve seçimler">
+      <Row label={t("Dil")} hint="Arayüz ve menü dili">
+        <div className="segmented small two">
+          <button className={s.language === "tr" ? "on" : ""} onClick={() => setLanguage("tr")}>{t("Türkçe")}</button>
+          <button className={s.language === "en" ? "on" : ""} onClick={() => setLanguage("en")}>{t("English")}</button>
+        </div>
+      </Row>
+      <Row label={t("Alt panel tam genişlikte")} hint="Sağ panel açıkken terminal paneli tüm genişliğe yayılsın; kapalıysa sadece sol tarafta durur">
+        <Toggle value={s.panelFullWidth} onChange={(v) => updateSettings({ panelFullWidth: v })} />
+      </Row>
+      <Row label={t("Vurgu rengi")} hint="Düğmeler, aktif sekme, imleç ve seçimler">
         <div className="swatches">
           {ACCENT_PRESETS.map((p) => (
             <button key={p.id} className={`swatch ${accent.toLowerCase() === p.color ? "on" : ""}`} onClick={() => pick(p.color)} title={p.name}>
@@ -88,18 +114,18 @@ export function Settings(props: Props) {
               <span>{p.name}</span>
             </button>
           ))}
-          <label className="swatch" title="Özel renk">
+          <label className="swatch" title={t("Özel renk")}>
             <input type="color" value={accent} onChange={(e) => pick(e.target.value)} />
-            <span>Özel</span>
+            <span>{t("Özel")}</span>
           </label>
         </div>
       </Row>
       {!q && (
         <div className="settings-preview">
           <KiteMark size={34} />
-          <button className="primary-btn">Örnek düğme</button>
-          <span className="settings-preview-tab">aktif sekme</span>
-          <kbd>⌘P</kbd>
+          <button className="primary-btn">{t("Örnek düğme")}</button>
+          <span className="settings-preview-tab">{t("aktif sekme")}</span>
+          <kbd>{t("⌘P")}</kbd>
         </div>
       )}
     </>
@@ -107,23 +133,23 @@ export function Settings(props: Props) {
 
   const editor = (
     <>
-      <Row label="Yazı boyutu" hint="⌘+ / ⌘- ile de değişir">
+      <Row label={t("Yazı boyutu")} hint="⌘+ / ⌘- ile de değişir">
         <Stepper value={s.editorFontSize} min={9} max={28} onChange={(v) => updateSettings({ editorFontSize: v })} />
       </Row>
-      <Row label="Sekme genişliği" hint="Tab tuşunun eklediği boşluk sayısı">
+      <Row label={t("Sekme genişliği")} hint="Tab tuşunun eklediği boşluk sayısı">
         <div className="segmented small">
           {[2, 4, 8].map((n) => (
             <button key={n} className={s.tabSize === n ? "on" : ""} onClick={() => updateSettings({ tabSize: n })}>{n}</button>
           ))}
         </div>
       </Row>
-      <Row label="Satır kaydırma" hint="Uzun satırlar pencereye sığacak şekilde kaydırılır">
+      <Row label={t("Satır kaydırma")} hint="Uzun satırlar pencereye sığacak şekilde kaydırılır">
         <Toggle value={s.wordWrap} onChange={(v) => updateSettings({ wordWrap: v })} />
       </Row>
-      <Row label="Mini harita" hint="Editörün sağında dosyanın küçük önizlemesi">
+      <Row label={t("Mini harita")} hint="Editörün sağında dosyanın küçük önizlemesi">
         <Toggle value={s.minimap} onChange={(v) => updateSettings({ minimap: v })} />
       </Row>
-      <Row label="Otomatik kaydet" hint="Yazmayı bıraktıktan 1 saniye sonra kaydeder">
+      <Row label={t("Otomatik kaydet")} hint="Yazmayı bıraktıktan 1 saniye sonra kaydeder">
         <Toggle value={s.autoSave} onChange={(v) => updateSettings({ autoSave: v })} />
       </Row>
     </>
@@ -131,11 +157,28 @@ export function Settings(props: Props) {
 
   const terminal = (
     <>
-      <Row label="Yazı boyutu" hint="Alt panel ve Claude sekmeleri">
+      <Row label={t("Yazı boyutu")} hint="Alt panel ve Claude sekmeleri">
         <Stepper value={s.terminalFontSize} min={9} max={28} onChange={(v) => updateSettings({ terminalFontSize: v })} />
       </Row>
-      <Row label="Kabuk" hint="Kite, $SHELL ile tanımlı kabuğu oturum açma kabuğu olarak başlatır">
-        <code className="set-code">$SHELL -l</code>
+      <Row label={t("Kabuk")} hint="Kite, $SHELL ile tanımlı kabuğu oturum açma kabuğu olarak başlatır">
+        <code className="set-code">{t("$SHELL -l")}</code>
+      </Row>
+    </>
+  );
+
+  const notifications = (
+    <>
+      <Row label={t("Terminal bildirimleri")} hint="Claude işini bitirince ya da bir komut zil (bell) çalınca macOS bildirimi gönder">
+        <Toggle value={s.notifyTerminal} onChange={(v) => updateSettings({ notifyTerminal: v })} />
+      </Row>
+      <Row label={t("Sadece Kite arka plandayken")} hint="Kite öndeyken bildirim gösterme">
+        <Toggle value={s.notifyOnlyUnfocused} onChange={(v) => updateSettings({ notifyOnlyUnfocused: v })} />
+      </Row>
+      <Row label={t("Claude Code ayarı")} hint="Claude'un bitince bildirim göndermesi için bir kez çalıştır">
+        <code className="set-code">{t("claude config set --global preferredNotifChannel iterm2_with_bell")}</code>
+      </Row>
+      <Row label={t("Deneme")} hint="İzin ister ve örnek bir bildirim gönderir">
+        <button className="secondary-btn" onClick={testNotification}>{t("Test bildirimi gönder")}</button>
       </Row>
     </>
   );
@@ -144,11 +187,11 @@ export function Settings(props: Props) {
   const cl = props.claude;
   const accountsSection = (
     <>
-      <Row label="GitHub" hint="GitHub CLI (gh) ile; push, pull ve depo yayınlama bunu kullanır">
+      <Row label={t("GitHub")} hint="GitHub CLI (gh) ile; push, pull ve depo yayınlama bunu kullanır">
         {!gh ? (
-          <span className="muted">Kontrol ediliyor…</span>
+          <span className="muted">{t("Kontrol ediliyor…")}</span>
         ) : !gh.installed ? (
-          <span className="muted">gh kurulu değil — <code>brew install gh</code></span>
+          <span className="muted">{t("gh kurulu değil —")} <code>{t("brew install gh")}</code></span>
         ) : gh.login ? (
           <div className="account">
             {gh.avatarUrl && <img src={gh.avatarUrl} alt="" />}
@@ -158,14 +201,14 @@ export function Settings(props: Props) {
             </div>
           </div>
         ) : (
-          <button className="primary-btn" onClick={props.onConnectGithub}>GitHub'ı bağla</button>
+          <button className="primary-btn" onClick={props.onConnectGithub}>{t("GitHub'ı bağla")}</button>
         )}
       </Row>
-      <Row label="Claude" hint="Claude Code hesabın; oturumlar ve ✦ sekmeleri bunu kullanır">
+      <Row label={t("Claude")} hint="Claude Code hesabın; oturumlar ve ✦ sekmeleri bunu kullanır">
         {!cl ? (
-          <span className="muted">Kontrol ediliyor…</span>
+          <span className="muted">{t("Kontrol ediliyor…")}</span>
         ) : !cl.installed ? (
-          <span className="muted">Claude Code kurulu değil</span>
+          <span className="muted">{t("Claude Code kurulu değil")}</span>
         ) : cl.email ? (
           <div className="account">
             <span className="account-mark">✦</span>
@@ -175,13 +218,13 @@ export function Settings(props: Props) {
             </div>
           </div>
         ) : (
-          <button className="primary-btn" onClick={props.onConnectClaude}>Claude'a giriş yap</button>
+          <button className="primary-btn" onClick={props.onConnectClaude}>{t("Claude'a giriş yap")}</button>
         )}
       </Row>
       {!q && (
         <div className="set-note">
-          Kite hiçbir şifre ya da token saklamaz. Girişler resmi araçların (gh, claude) kendi ekranlarında yapılır.
-          <button className="link-btn" onClick={props.onRefreshAccounts}>Yenile</button>
+          {t("Kite hiçbir şifre ya da token saklamaz. Girişler resmi araçların (gh, claude) kendi ekranlarında yapılır.")}
+          <button className="link-btn" onClick={props.onRefreshAccounts}>{t("Yenile")}</button>
         </div>
       )}
     </>
@@ -191,7 +234,7 @@ export function Settings(props: Props) {
     <div className="set-shortcuts">
       {SHORTCUTS.filter(([l]) => !q || l.toLocaleLowerCase("tr").includes(q)).map(([label, keys]) => (
         <div key={label} className="set-shortcut">
-          <span>{label}</span>
+          <span>{t(label)}</span>
           <kbd>{keys}</kbd>
         </div>
       ))}
@@ -202,31 +245,31 @@ export function Settings(props: Props) {
     <div className="set-about">
       <KiteMark size={56} />
       <div>
-        <b>Kite</b>
-        <small>Hafif, hızlı, Claude ile entegre kod editörü</small>
-        <button className="link-btn" onClick={() => updateSettings(DEFAULT_SETTINGS)}>Editör ayarlarını sıfırla</button>
+        <b>{t("Kite")}</b>
+        <small>{t("Hafif, hızlı, Claude ile entegre kod editörü")}</small>
+        <button className="link-btn" onClick={() => updateSettings(DEFAULT_SETTINGS)}>{t("Editör ayarlarını sıfırla")}</button>
       </div>
     </div>
   );
 
   const content: Record<SectionId, ReactNode> = {
-    appearance, editor, terminal, accounts: accountsSection, shortcuts, about,
+    appearance, editor, terminal, notifications, accounts: accountsSection, shortcuts, about,
   };
 
   return (
     <div className="overlay settings-overlay" onMouseDown={props.onClose}>
       <div className="settings-modal" ref={boxRef} onMouseDown={(e) => e.stopPropagation()}>
         <div className="settings-top">
-          <span className="settings-title">⚙ Ayarlar</span>
+          <span className="settings-title">{t("⚙ Ayarlar")}</span>
           <input
             autoFocus
             className="search-input settings-search"
-            placeholder="Ayarlarda ara"
+            placeholder={t("Ayarlarda ara")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             spellCheck={false}
           />
-          <button className="icon-btn" onClick={props.onClose} title="Kapat (Esc)">×</button>
+          <button className="icon-btn" onClick={props.onClose} title={t("Kapat (Esc)")}><Icon name="close" /></button>
         </div>
         <div className="settings-body">
           <nav className="settings-nav">
@@ -240,7 +283,7 @@ export function Settings(props: Props) {
                 }}
               >
                 <span className="nav-icon">{sec.icon}</span>
-                {sec.label}
+                {t(sec.label)}
               </button>
             ))}
           </nav>
@@ -248,13 +291,13 @@ export function Settings(props: Props) {
             {q ? (
               SECTIONS.filter((sec) => sec.id !== "about").map((sec) => (
                 <div key={sec.id} className="settings-group">
-                  <h3>{sec.label}</h3>
+                  <h3>{t(sec.label)}</h3>
                   {content[sec.id]}
                 </div>
               ))
             ) : (
               <div className="settings-group">
-                <h2>{SECTIONS.find((x) => x.id === section)!.label}</h2>
+                <h2>{t(SECTIONS.find((x) => x.id === section)!.label)}</h2>
                 {content[section]}
               </div>
             )}

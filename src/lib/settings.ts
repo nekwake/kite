@@ -7,6 +7,13 @@ export type Settings = {
   minimap: boolean;
   wordWrap: boolean;
   tabSize: number;
+  language: "tr" | "en";
+  /** Desktop notifications from terminals (Claude finished, bell, OSC 9/777) */
+  notifyTerminal: boolean;
+  /** Only notify while Kite is in the background */
+  notifyOnlyUnfocused: boolean;
+  /** Bottom panel spans the whole width, or only the left editor group */
+  panelFullWidth: boolean;
 };
 
 const KEY = "kite.settings";
@@ -17,6 +24,10 @@ export const DEFAULT_SETTINGS: Settings = {
   minimap: false,
   wordWrap: false,
   tabSize: 2,
+  language: "tr",
+  notifyTerminal: true,
+  notifyOnlyUnfocused: true,
+  panelFullWidth: false,
 };
 
 export function loadSettings(): Settings {

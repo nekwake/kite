@@ -1,27 +1,65 @@
-# Kite
+<p align="center">
+  <img src="assets/app-icon.svg" width="112" alt="Kite" />
+</p>
 
-Hafif, hızlı, Claude ile entegre kod editörü. Tauri 2 (Rust) + React + Monaco + xterm.js.
+<h1 align="center">Kite</h1>
+
+<p align="center">
+  macOS için hafif kod editörü ve terminal — Claude Code oturumların yanında.<br/>
+  ~9 MB · Tauri + Rust · Monaco · xterm.js
+</p>
+
+<p align="center">
+  <a href="https://github.com/nekwake/kite/releases/latest"><b>⬇ macOS için indir (.dmg)</b></a>
+  ·
+  <a href="https://github.com/nekwake/kite/releases">Tüm sürümler</a>
+</p>
+
+---
+
+## Neler var
+
+- **Claude Code oturumları** — proje bazlı oturum listesi, tek tıkla `claude --resume`, Claude'u sağ panele sürükleme, dosyaları sürükleyip `@dosya` olarak ekleme
+- **Editör** — Monaco (VS Code'un editörü), önizleme sekmeleri, iki editör grubu, ⌘P / ⌘⇧P, satır kenarında git işaretleri, Sorunlar paneli
+- **Terminal** — gerçek zsh, bölme, sağda terminal listesi, Claude bitince bildirim
+- **Git** — değişiklikler, diff, commit, branch, geçmiş grafiği, pull/push, tek tıkla GitHub'a yayınlama
+- **Diğer** — ripgrep araması, dosya işlemleri, renk temaları, Türkçe/English, otomatik güncelleme
 
 ## Kurulum
 
-```bash
-npm install
-npm run install-app
-```
+1. [Son sürümden](https://github.com/nekwake/kite/releases/latest) `.dmg` dosyasını indir, Kite'ı **Uygulamalar** klasörüne sürükle.
+2. Kite henüz Apple tarafından imzalı değil. İlk açılışta macOS uyarı verirse:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Kite.app
+   ```
+3. Terminalden klasör açmak için `kite` komutu (isteğe bağlı):
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/nekwake/kite/main/scripts/kite -o ~/.local/bin/kite && chmod +x ~/.local/bin/kite
+   ```
+   Sonra herhangi bir klasörde: `kite .`
 
-Kite.app'i `/Applications` içine kurar ve `kite` komutunu ekler. Sonra herhangi bir klasörde `kite .`
+Yeni sürüm çıktığında Kite sağ üstte **Güncelle** düğmesi gösterir; tek tıkla indirip yeniden başlar.
 
 ## Geliştirme
 
 ```bash
 npm install
-npm run tauri dev
+npm run tauri dev        # geliştirme modu
+npm run install-app      # derleyip /Applications'a kurar + kite komutu
 ```
 
-## Yol haritası
+### Sürüm çıkarma
 
-1. ✅ İskelet: dosya ağacı, Monaco editör, terminal paneli
-2. Arama: ⌘P hızlı açma, projede metin arama (ripgrep)
-3. Git: değişiklikler, diff, stage/commit, branch, geçmiş
-4. Claude paneli: Claude Code `stream-json`, tool call kartları, MCP listesi, diff onayı
-5. OpenRouter: model seçici, chat, okuma tool'ları
+```bash
+npm run release -- 0.2.0     # sürümü yükseltir, commit + v0.2.0 etiketi
+git push && git push origin v0.2.0
+```
+
+Etiket gidince GitHub Actions ([release.yml](.github/workflows/release.yml)) universal `.dmg`'yi ve imzalı güncelleme paketini derleyip Release'e koyar. Kurulu Kite'lar `latest.json` üzerinden yeni sürümü görür.
+
+Gerekli GitHub secret'ları (Settings → Secrets → Actions):
+
+| Secret | Değer |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | `~/.tauri/kite.key` dosyasının içeriği |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | boş bırak |

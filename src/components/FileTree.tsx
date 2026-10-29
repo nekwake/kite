@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "../lib/i18n";
+import { Chevron, Icon } from "../lib/icons";
 import { listenHere } from "../lib/events";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { api, basename, dirname, Entry, relativeTo } from "../lib/api";
@@ -214,7 +216,7 @@ export function FileTree(props: Props) {
                 onPointerDown={(e) => startPathDrag(e, [entry.path], entry.name)}
                 title={relativeTo(root, entry.path)}
               >
-                <span className="tree-chevron">{entry.isDir ? (isOpen ? "▾" : "▸") : ""}</span>
+                <span className="tree-chevron">{entry.isDir && <Chevron open={isOpen} />}</span>
                 <FileIcon name={entry.name} dir={entry.isDir} open={isOpen} />
                 <span className={`${entry.isDir ? "tree-dir" : "tree-file"} ${changed ? `git-${changed}` : ""}`}>
                   {entry.name}
@@ -234,10 +236,10 @@ export function FileTree(props: Props) {
       <div className="sidebar-header">
         <span>{basename(root).toUpperCase()}</span>
         <div className="header-actions">
-          <button className="icon-btn" onClick={() => startCreate("file", selectedDir())} title="Yeni dosya">＋</button>
-          <button className="icon-btn" onClick={() => startCreate("folder", selectedDir())} title="Yeni klasör">⊞</button>
-          <button className="icon-btn" onClick={() => expanded.forEach(load)} title="Yenile">↻</button>
-          <button className="icon-btn" onClick={() => setExpanded(new Set([root]))} title="Tümünü daralt">⊟</button>
+          <button className="icon-btn" onClick={() => startCreate("file", selectedDir())} title={t("Yeni dosya")}><Icon name="filePlus" /></button>
+          <button className="icon-btn" onClick={() => startCreate("folder", selectedDir())} title={t("Yeni klasör")}><Icon name="folderPlus" /></button>
+          <button className="icon-btn" onClick={() => expanded.forEach(load)} title={t("Yenile")}><Icon name="refresh" /></button>
+          <button className="icon-btn" onClick={() => setExpanded(new Set([root]))} title={t("Tümünü daralt")}><Icon name="collapse" /></button>
         </div>
       </div>
       <div

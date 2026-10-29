@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { t } from "../lib/i18n";
+import { Chevron } from "../lib/icons";
 import { api, SearchOptions, SearchResult } from "../lib/api";
 import { KiteLoader } from "./KiteLogo";
 
@@ -56,28 +58,28 @@ export function SearchView({ root, focusNonce, onOpenMatch }: Props) {
   return (
     <div className="sidebar-section">
       <div className="sidebar-header">
-        <span>ARA</span>
+        <span>{t("ARA")}</span>
       </div>
       <div className="search-box">
         <input
           ref={inputRef}
           className="search-input"
-          placeholder="Ara"
+          placeholder={t("Ara")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           spellCheck={false}
         />
         <div className="search-toggles">
-          <button className={opts.caseSensitive ? "on" : ""} onClick={() => toggle("caseSensitive")} title="Büyük/küçük harf duyarlı">Aa</button>
-          <button className={opts.wholeWord ? "on" : ""} onClick={() => toggle("wholeWord")} title="Tam kelime"><u>ab</u></button>
-          <button className={opts.regex ? "on" : ""} onClick={() => toggle("regex")} title="Regex">.*</button>
+          <button className={opts.caseSensitive ? "on" : ""} onClick={() => toggle("caseSensitive")} title={t("Büyük/küçük harf duyarlı")}>{t("Aa")}</button>
+          <button className={opts.wholeWord ? "on" : ""} onClick={() => toggle("wholeWord")} title={t("Tam kelime")}><u>{t("ab")}</u></button>
+          <button className={opts.regex ? "on" : ""} onClick={() => toggle("regex")} title={t("Regex")}>.*</button>
         </div>
       </div>
       <div className="search-summary">
         {error
           ? <span className="search-error">{error}</span>
           : busy
-            ? <KiteLoader size={16} label="Aranıyor…" />
+            ? <KiteLoader size={16} label={t("Aranıyor…")} />
             : result && (total === 0
               ? "Sonuç yok"
               : `${result.files.length} dosyada ${total} sonuç${result.truncated ? " (ilk 5000)" : ""}`)}
@@ -100,7 +102,7 @@ export function SearchView({ root, focusNonce, onOpenMatch }: Props) {
                 }
                 title={f.relative}
               >
-                <span className="tree-chevron">{open ? "▾" : "▸"}</span>
+                <span className="tree-chevron"><Chevron open={open} /></span>
                 <span className="tree-file">{f.relative.slice(slash + 1)}</span>
                 {slash > 0 && <span className="search-dir">{f.relative.slice(0, slash)}</span>}
                 <span className="search-count">{f.matches.length}</span>

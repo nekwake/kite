@@ -10,6 +10,8 @@ import { api } from "./api";
 import { currentAccent } from "./theme";
 import { getSettings, Settings } from "./settings";
 import { DROP_ATTR, DROP_EVENT } from "./drag";
+import { notifyFromTerminal } from "./notify";
+import { t } from "./i18n";
 
 export type TerminalSession = {
   el: HTMLDivElement;
@@ -18,15 +20,16 @@ export type TerminalSession = {
   dispose: () => void;
 };
 
+// VS Code's dark terminal palette; yellow is warmed to amber so it never reads as the accent
 const THEME = {
   background: "#141414",
-  foreground: "#d4d4d4",
+  foreground: "#cccccc",
   cursorAccent: "#141414",
   selectionBackground: "#ffffff30",
-  black: "#1e1e1e", red: "#f14c4c", green: "#23d18b", yellow: "#f5f543",
-  blue: "#3b8eea", magenta: "#d670d6", cyan: "#29b8db", white: "#e5e5e5",
+  black: "#000000", red: "#cd3131", green: "#0dbc79", yellow: "#e5a50a",
+  blue: "#2472c8", magenta: "#bc3fbc", cyan: "#11a8cd", white: "#e5e5e5",
   brightBlack: "#666666", brightRed: "#f14c4c", brightGreen: "#23d18b",
-  brightYellow: "#f5f543", brightBlue: "#3b8eea", brightMagenta: "#d670d6",
+  brightYellow: "#f5c242", brightBlue: "#3b8eea", brightMagenta: "#d670d6",
   brightCyan: "#29b8db", brightWhite: "#ffffff",
 };
 
@@ -95,6 +98,21 @@ export function createTerminal(opts: { cwd: string; command?: string; onExit: ()
     refit();
     spawn();
   });
+
+  // Notifications: OSC 9 (iTerm2, used by Claude Code), OSC 777 (rxvt), and the bell
+  const isClaude = !!opts.command?.startsWith("claude");
+  const who = isClaude ? "Claude" : `Terminal — ${opts.cwd.split("/").pop()}`;
+  term.parser.registerOscHandler(9, (data) => {
+    // OSC 9;4 is progress reporting, not a message
+    if (!/^\d+;/.test(data)) notifyFromTerminal(who, data);
+    return true;
+  });
+  term.parser.registerOscHandler(777, (data) => {
+    const [kind, title, body] = data.split(";");
+    if (kind === "notify") notifyFromTerminal(title || who, body ?? "");
+    return true;
+  });
+  term.onBell(() => notifyFromTerminal(who, t(isClaude ? "Claude seni bekliyor" : "Terminal dikkatini istiyor")));
 
   term.onData((data) => ptyId !== null && api.ptyWrite(ptyId, data));
   term.onResize(({ cols, rows }) => ptyId !== null && api.ptyResize(ptyId, cols, rows));

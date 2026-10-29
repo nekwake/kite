@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { t } from "./lib/i18n";
 import * as monaco from "monaco-editor";
 import { ask, open, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,14 +16,16 @@ import { EditorArea, Reveal } from "./components/EditorArea";
 import { Command, QuickOpen } from "./components/QuickOpen";
 import { ContextMenu, MenuItem, MenuState } from "./components/ContextMenu";
 import { dropAt, DROP_ATTR, DROP_EVENT } from "./lib/drag";
-import { getSettings, zoom } from "./lib/settings";
+import { getSettings, updateSettings, useSettings, zoom } from "./lib/settings";
 import { SearchView } from "./components/SearchView";
 import { GitView } from "./components/GitView";
 import { GitHistory } from "./components/GitHistory";
-import { KiteMark } from "./components/KiteLogo";
+import { Icon } from "./lib/icons";
 import { Settings } from "./components/Settings";
+import { Welcome } from "./components/Welcome";
 import { PanelView, TerminalPanel, TermTab } from "./components/TerminalPanel";
 import { Problem, useProblems } from "./lib/problems";
+import { useUpdate } from "./lib/updater";
 import { ActivityBar, Resizer, StatusBar, TitleBar, View } from "./components/Chrome";
 import { ClaudeSessions } from "./components/ClaudeSessions";
 
@@ -81,6 +84,15 @@ export default function App() {
   const nextCenterTerm = useRef(1);
 
   const { status: gitStatus, refresh: refreshGit } = useGitStatus(root);
+  const settings = useSettings();
+  const updater = useUpdate();
+  const updateInfo = updater.update
+    ? { version: updater.update.version, progress: updater.progress, onInstall: () => updater.install().catch((e) => setError(String(e))) }
+    : null;
+  useEffect(() => {
+    if (inTauri && settings.language !== "tr") invoke("set_menu_language", { language: settings.language }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Connected accounts; re-checked when the window regains focus (after a CLI login)
   const [github, setGithub] = useState<GithubAccount | null>(null);
@@ -686,26 +698,17 @@ export default function App() {
     return { files, dirs };
   }, [gitStatus]);
 
+  // Window title for Mission Control and the Window menu
+  useEffect(() => {
+    if (!inTauri) return;
+    getCurrentWindow().setTitle(root ? `${basename(root)} — Kite` : "Kite").catch(() => {});
+  }, [root]);
+
   if (!root) {
     return (
       <div className="app">
-        <TitleBar title="Kite" />
-        <div className="welcome">
-          <div className="brand"><KiteMark size={88} /><span className="wordmark">Kite</span></div>
-          <p>Hafif, hızlı, Claude ile entegre kod editörü.</p>
-          <button className="primary-btn" onClick={openFolder}>Klasör aç (⌘O)</button>
-          {recentProjects().length > 0 && (
-            <div className="recent-projects">
-              <div className="recent-title">Son projeler</div>
-              {recentProjects().map((p) => (
-                <button key={p} className="recent-project" onClick={() => switchRoot(p)}>
-                  <span>{basename(p)}</span>
-                  <span className="recent-path">{dirname(p).replace(/^\/Users\/[^/]+/, "~")}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <TitleBar label="Kite" update={updateInfo} />
+        <Welcome recent={recentProjects()} onOpenFolder={openFolder} onOpenRecent={switchRoot} />
         {settingsOpen && (
         <Settings
           onClose={() => setSettingsOpen(false)}
@@ -732,7 +735,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <TitleBar title={activeTab ? `${tabTitle(activeTab)} — ${basename(root)}` : basename(root)} />
+      <TitleBar label={basename(root)} onSearch={() => setQuickOpen("")} update={updateInfo} />
       <div className="workbench">
         <ActivityBar
           view={view}
@@ -792,8 +795,11 @@ export default function App() {
             <Resizer dir="x" onDrag={(d) => setSidebarW((w) => clamp(w + d, 160, 600))} />
           </>
         )}
+        {/* With Claude on the right, the bottom panel spans either the whole width
+            or only the left group; the panel itself never moves, so shells survive */}
         <div className="main">
-          <div className="main-editor" style={{ display: panelMax && panelOpen ? "none" : undefined }}>
+          <div className="main-left">
+            <div className="main-editor" style={{ display: panelMax && panelOpen ? "none" : undefined }}>
             <EditorArea
               group="main"
               tabs={tabs.filter((t) => groupOf(t) === "main")}
@@ -804,8 +810,8 @@ export default function App() {
               onSelect={(id) => setActiveId(id, "main")}
               {...editorHandlers}
             />
-            {hasRight && (
-              <>
+              {hasRight && settings.panelFullWidth && (
+                <>
                 <Resizer dir="x" onDrag={(d) => setRightW((w) => clamp(w - d, 280, 1400))} />
                 <div className="right-group" style={{ width: rightW }}>
                   <EditorArea
@@ -820,8 +826,8 @@ export default function App() {
                   />
                 </div>
               </>
-            )}
-          </div>
+              )}
+            </div>
           {/* Kept mounted while hidden so shells keep running */}
           <div style={{ display: panelOpen && (terms.length || panelView === "problems") ? "contents" : "none" }}>
             <Resizer dir="y" onDrag={(d) => setPanelH((h) => clamp(h - d, 100, 800))} />
@@ -851,10 +857,29 @@ export default function App() {
                 onClose={closeTerminal}
                 maximized={panelMax}
                 onToggleMaximize={() => setPanelMax((m) => !m)}
+                widthToggle={hasRight ? { full: settings.panelFullWidth, toggle: () => updateSettings({ panelFullWidth: !settings.panelFullWidth }) } : null}
                 onHide={() => setPanelOpen(false)}
               />
             </div>
           </div>
+          </div>
+          {hasRight && !settings.panelFullWidth && (
+            <>
+                <Resizer dir="x" onDrag={(d) => setRightW((w) => clamp(w - d, 280, 1400))} />
+                <div className="right-group" style={{ width: rightW }}>
+                  <EditorArea
+                    group="right"
+                    tabs={tabs.filter((t) => groupOf(t) === "right")}
+                    activeId={activeRight}
+                    focused={focusedGroup === "right"}
+                    canSplit={false}
+                    onFocus={() => setFocusedGroup("right")}
+                    onSelect={(id) => setActiveId(id, "right")}
+                    {...editorHandlers}
+                  />
+                </div>
+              </>
+          )}
         </div>
       </div>
       {settingsOpen && (
@@ -902,8 +927,8 @@ export default function App() {
             : []
         }
         toggles={[
-          { label: "Terminal", title: "Terminali aç/kapat (⌘J)", on: panelOpen && panelView === "terminal" && terms.length > 0, fn: togglePanel },
-          { label: "✦ Claude", title: "Yeni Claude oturumu (⌘L)", on: false, fn: () => openClaude() },
+          { label: <><Icon name="terminal" size={14} /> {t("Terminal")}</>, title: "Terminali aç/kapat (⌘J)", on: panelOpen && panelView === "terminal" && terms.length > 0, fn: togglePanel },
+          { label: <><Icon name="sparkle" size={14} /> Claude</>, title: "Yeni Claude oturumu (⌘L)", on: false, fn: () => openClaude() },
         ]}
       />
     </div>
@@ -911,7 +936,7 @@ export default function App() {
 }
 
 function ProblemsList({ problems, root, onOpen }: { problems: Problem[]; root: string; onOpen: (p: Problem) => void }) {
-  if (!problems.length) return <div className="git-none">Açık dosyalarda sorun bulunmadı.</div>;
+  if (!problems.length) return <div className="git-none">{t("Açık dosyalarda sorun bulunmadı.")}</div>;
   const byFile = new Map<string, Problem[]>();
   problems.forEach((p) => byFile.set(p.path, [...(byFile.get(p.path) ?? []), p]));
   return (

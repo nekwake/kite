@@ -18,6 +18,9 @@ pub fn run() {
             window::on_second_instance(app, argv, cwd);
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
         .manage(claude::ClaudeState::default())
@@ -28,7 +31,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            app.set_menu(menu::build(app.handle())?)?;
+            app.set_menu(menu::build(app.handle(), "tr")?)?;
             menu::forward_events(app.handle());
             Ok(())
         })
@@ -66,6 +69,7 @@ pub fn run() {
             accounts::claude_account,
             accounts::github_publish,
             window::open_window,
+            menu::set_menu_language,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

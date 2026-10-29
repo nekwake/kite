@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { t } from "../lib/i18n";
+import { Chevron, Icon } from "../lib/icons";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { accounts, basename, Branches, FileChange, git, GitStatus } from "../lib/api";
 import { KiteLoader } from "./KiteLogo";
@@ -58,15 +60,15 @@ export function GitView(props: Props) {
   };
 
   if (!status) {
-    return <Section title="KAYNAK KONTROLÜ"><div className="git-empty"><KiteLoader size={18} /></div></Section>;
+    return <Section title={t("KAYNAK KONTROLÜ")}><div className="git-empty"><KiteLoader size={18} /></div></Section>;
   }
 
   if (!status.isRepo) {
     return (
-      <Section title="KAYNAK KONTROLÜ">
+      <Section title={t("KAYNAK KONTROLÜ")}>
         <div className="git-empty">
-          <p>Bu klasör bir git deposu değil.</p>
-          <button className="primary-btn" onClick={() => run("init", () => git.init(root))}>Depo oluştur</button>
+          <p>{t("Bu klasör bir git deposu değil.")}</p>
+          <button className="primary-btn" onClick={() => run("init", () => git.init(root))}>{t("Depo oluştur")}</button>
         </div>
       </Section>
     );
@@ -130,14 +132,14 @@ export function GitView(props: Props) {
   const remoteAction = !hasRemote ? (
     githubLogin ? (
       <button className="secondary-btn" disabled={!!busy} onClick={() => setPublish({ name: basename(root), private: true })}>
-        ☁ GitHub'a yayınla
+        {t("☁ GitHub'a yayınla")}
       </button>
     ) : (
-      <button className="secondary-btn" onClick={onConnectGithub}>GitHub'ı bağla</button>
+      <button className="secondary-btn" onClick={onConnectGithub}>{t("GitHub'ı bağla")}</button>
     )
   ) : !status.upstream ? (
     <button className="secondary-btn" disabled={!!busy} onClick={() => run("publish", () => git.sync(root, "publish"))}>
-      ☁ Branch'i yayınla
+      {t("☁ Branch'i yayınla")}
     </button>
   ) : syncLabel ? (
     <button className="secondary-btn" disabled={!!busy} onClick={sync}>⟳ Senkronize et {syncLabel}</button>
@@ -145,11 +147,11 @@ export function GitView(props: Props) {
 
   return (
     <Section
-      title="KAYNAK KONTROLÜ"
+      title={t("KAYNAK KONTROLÜ")}
       actions={
         <>
-          <button className="icon-btn" title="Geçmişi sekmede aç" onClick={onShowHistory}>⎇</button>
-          <button className="icon-btn" title="Yenile" onClick={() => refresh()}>↻</button>
+          <button className="icon-btn" title={t("Geçmişi sekmede aç")} onClick={onShowHistory}><Icon name="history" /></button>
+          <button className="icon-btn" title={t("Yenile")} onClick={() => refresh()}><Icon name="refresh" /></button>
         </>
       }
     >
@@ -159,11 +161,11 @@ export function GitView(props: Props) {
           value={branches?.current ?? status.branch ?? ""}
           onChange={(e) => switchBranch(e.target.value)}
           disabled={!!busy}
-          title="Branch değiştir"
+          title={t("Branch değiştir")}
         >
           {!branches?.local.length && <option value={status.branch ?? ""}>{status.branch ?? "(branch yok)"}</option>}
           {branches?.local.map((b) => <option key={b} value={b}>⎇ {b}</option>)}
-          <option value="__new__">+ Yeni branch…</option>
+          <option value="__new__">{t("+ Yeni branch…")}</option>
         </select>
       </div>
 
@@ -171,7 +173,7 @@ export function GitView(props: Props) {
         <input
           autoFocus
           className="search-input git-new-branch"
-          placeholder="Yeni branch adı, ↵ ile oluştur"
+          placeholder={t("Yeni branch adı, ↵ ile oluştur")}
           value={newBranch}
           onChange={(e) => setNewBranch(e.target.value)}
           onBlur={() => setNewBranch(null)}
@@ -204,12 +206,12 @@ export function GitView(props: Props) {
           spellCheck={false}
         />
         <button className="primary-btn git-commit-btn" disabled={!canCommit} onClick={commit}>
-          {busy === "commit" ? "Commit'leniyor…" : commitAll && status.changes.length ? "Tümünü commit'le" : "Commit"}
+          {t(busy === "commit" ? "Commit'leniyor…" : commitAll && status.changes.length ? "Tümünü commit'le" : "Commit")}
         </button>
         {remoteAction}
         {publish && (
           <div className="publish-box">
-            <label>Depo adı</label>
+            <label>{t("Depo adı")}</label>
             <input
               autoFocus
               className="search-input"
@@ -222,11 +224,11 @@ export function GitView(props: Props) {
               spellCheck={false}
             />
             <div className="segmented">
-              <button className={publish.private ? "on" : ""} onClick={() => setPublish({ ...publish, private: true })}>Gizli</button>
-              <button className={!publish.private ? "on" : ""} onClick={() => setPublish({ ...publish, private: false })}>Herkese açık</button>
+              <button className={publish.private ? "on" : ""} onClick={() => setPublish({ ...publish, private: true })}>{t("Gizli")}</button>
+              <button className={!publish.private ? "on" : ""} onClick={() => setPublish({ ...publish, private: false })}>{t("Herkese açık")}</button>
             </div>
             <div className="publish-actions">
-              <button className="secondary-btn" onClick={() => setPublish(null)}>Vazgeç</button>
+              <button className="secondary-btn" onClick={() => setPublish(null)}>{t("Vazgeç")}</button>
               <button className="primary-btn" onClick={doPublish}>github.com/{githubLogin}/{publish.name.trim() || "…"} oluştur</button>
             </div>
           </div>
@@ -238,7 +240,7 @@ export function GitView(props: Props) {
       <div className="tree">
         {staged.length > 0 && (
           <ChangeGroup
-            title="Hazırlanan değişiklikler"
+            title={t("Hazırlanan değişiklikler")}
             changes={staged}
             groupAction={{ label: "−", title: "Tümünü geri çek", fn: () => run("unstage", () => git.unstage(root, staged.map((c) => c.path))) }}
             rowActions={(c) => [
@@ -249,7 +251,7 @@ export function GitView(props: Props) {
           />
         )}
         <ChangeGroup
-          title="Değişiklikler"
+          title={t("Değişiklikler")}
           changes={unstaged}
           groupAction={unstaged.length ? { label: "+", title: "Tümünü hazırla", fn: () => run("stage", () => git.stage(root, unstaged.map((c) => c.path))) } : undefined}
           extraGroupAction={unstaged.length ? { label: "↺", title: "Tümünü geri al", fn: () => discard(unstaged) } : undefined}
@@ -266,21 +268,21 @@ export function GitView(props: Props) {
       {graphOpen && <Resizer dir="y" onDrag={(d) => setGraphH((h) => Math.min(800, Math.max(90, h - d)))} />}
       <div className="git-graph" style={{ height: graphOpen ? graphH : undefined }}>
         <div className="tree-row change-group-head git-graph-head" onClick={() => setGraphOpen(!graphOpen)}>
-          <span className="tree-chevron">{graphOpen ? "▾" : "▸"}</span>
-          <span>Geçmiş</span>
+          <span className="tree-chevron"><Chevron open={graphOpen} /></span>
+          <span>{t("Geçmiş")}</span>
           <span className="graph-actions" onClick={(e) => e.stopPropagation()}>
             {hasRemote && (
               <>
-                <button className="icon-btn" title="Uzak depodan getir (fetch)" disabled={!!busy} onClick={() => run("fetch", () => git.sync(root, "fetch"))}>⇣</button>
+                <button className="icon-btn" title={t("Uzak depodan getir (fetch)")} disabled={!!busy} onClick={() => run("fetch", () => git.sync(root, "fetch"))}><Icon name="fetch" /></button>
                 <button className="icon-btn" title={`Çek (pull)${status.behind ? ` — ${status.behind} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("pull", () => git.sync(root, "pull"))}>
-                  ↓{status.behind || ""}
+                  <Icon name="pull" />{status.behind || ""}
                 </button>
                 <button className="icon-btn" title={`Gönder (push)${status.ahead ? ` — ${status.ahead} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("push", () => git.sync(root, "push"))}>
-                  ↑{status.ahead || ""}
+                  <Icon name="push" />{status.ahead || ""}
                 </button>
               </>
             )}
-            <button className="icon-btn" title="Geçmişi sekmede aç" onClick={onShowHistory}>⤢</button>
+            <button className="icon-btn" title={t("Geçmişi sekmede aç")} onClick={onShowHistory}><Icon name="openTab" /></button>
           </span>
         </div>
         {graphOpen && (
@@ -329,16 +331,16 @@ function ChangeGroup({ title, changes, groupAction, extraGroupAction, rowActions
   return (
     <div className="change-group">
       <div className="tree-row change-group-head" onClick={() => setOpen(!open)}>
-        <span className="tree-chevron">{open ? "▾" : "▸"}</span>
-        <span>{title}</span>
+        <span className="tree-chevron"><Chevron open={open} /></span>
+        <span>{t(title)}</span>
         <span className="row-actions" onClick={(e) => e.stopPropagation()}>
           {[extraGroupAction, groupAction].filter(Boolean).map((a) => (
-            <button key={a!.title} className="icon-btn" title={a!.title} onClick={a!.fn}>{a!.label}</button>
+            <button key={a!.title} className="icon-btn" title={t(a!.title)} onClick={a!.fn}>{a!.label}</button>
           ))}
         </span>
         <span className="search-count">{changes.length}</span>
       </div>
-      {open && changes.length === 0 && empty && <div className="git-none">{empty}</div>}
+      {open && changes.length === 0 && empty && <div className="git-none">{t(empty)}</div>}
       {open &&
         changes.map((c) => {
           const slash = c.rel.lastIndexOf("/");
@@ -348,7 +350,7 @@ function ChangeGroup({ title, changes, groupAction, extraGroupAction, rowActions
               <span className="change-dir">{slash > 0 ? c.rel.slice(0, slash) : ""}</span>
               <span className="row-actions" onClick={(e) => e.stopPropagation()}>
                 {rowActions(c).filter((a) => !a.hidden).map((a) => (
-                  <button key={a.title} className="icon-btn" title={a.title} onClick={a.fn}>{a.label}</button>
+                  <button key={a.title} className="icon-btn" title={t(a.title)} onClick={a.fn}>{a.label}</button>
                 ))}
               </span>
               <span className={`change-status s-${c.status}`} title={STATUS_TITLE[c.status]}>{c.status}</span>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { t } from "../lib/i18n";
 import { api } from "../lib/api";
 import { fuzzyFilter, fuzzyMatch } from "../lib/fuzzy";
 import { FileIcon } from "../lib/fileIcons";
@@ -39,7 +40,7 @@ export function QuickOpen({ root, recent, commands, initialQuery, onOpen, onGoto
     if (mode === "command") {
       const q = query.slice(1).trim();
       return commands
-        .map((cmd) => ({ cmd, m: fuzzyMatch(q, cmd.label) }))
+        .map((cmd) => ({ cmd: { ...cmd, label: t(cmd.label) }, m: fuzzyMatch(q, t(cmd.label)) }))
         .filter((x) => x.m)
         .sort((a, b) => (q ? b.m!.score - a.m!.score : 0))
         .map(({ cmd, m }) => ({ kind: "command", cmd, positions: m!.positions }));
@@ -71,8 +72,9 @@ export function QuickOpen({ root, recent, commands, initialQuery, onOpen, onGoto
     else onGotoLine(row.line);
   };
 
-  const placeholder =
-    mode === "command" ? "Komut ara…" : mode === "line" ? "Satır numarası" : "Dosya ara  ·  > komutlar  ·  : satıra git";
+  const placeholder = t(
+    mode === "command" ? "Komut ara…" : mode === "line" ? "Satır numarası" : "Dosya ara  ·  > komutlar  ·  : satıra git",
+  );
 
   return (
     <div className="overlay" onMouseDown={onClose}>
@@ -100,10 +102,10 @@ export function QuickOpen({ root, recent, commands, initialQuery, onOpen, onGoto
         />
         <div className="palette-list" ref={listRef}>
           {mode === "file" && files === null && (
-            <div className="palette-empty"><KiteLoader size={20} label="Dosyalar listeleniyor…" /></div>
+            <div className="palette-empty"><KiteLoader size={20} label={t("Dosyalar listeleniyor…")} /></div>
           )}
           {rows.length === 0 && (mode !== "file" || files) && (
-            <div className="palette-empty">{mode === "line" ? "Gitmek istediğin satırı yaz" : "Sonuç yok"}</div>
+            <div className="palette-empty">{t(mode === "line" ? "Gitmek istediğin satırı yaz" : "Sonuç yok")}</div>
           )}
           {rows.map((r, i) => (
             <div
@@ -121,7 +123,7 @@ export function QuickOpen({ root, recent, commands, initialQuery, onOpen, onGoto
                   {r.cmd.shortcut && <kbd className="palette-kbd">{r.cmd.shortcut}</kbd>}
                 </>
               )}
-              {r.kind === "line" && <span className="palette-name">{r.line}. satıra git</span>}
+              {r.kind === "line" && <span className="palette-name">{t("Satıra git")}: {r.line}</span>}
             </div>
           ))}
         </div>

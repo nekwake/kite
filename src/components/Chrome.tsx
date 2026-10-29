@@ -1,11 +1,34 @@
 // Small layout pieces: title bar, activity bar, status bar, resizer
+import { t } from "../lib/i18n";
 
-import { useRef } from "react";
+import { ReactNode, useRef } from "react";
+import { Icon as LineIcon } from "../lib/icons";
 
-export function TitleBar({ title }: { title: string }) {
+/** Title bar with a centered command-center button, like VS Code; it opens ⌘P */
+export type UpdateInfo = { version: string; progress: number | null; onInstall: () => void };
+
+export function TitleBar({ label, onSearch, update }: { label: string; onSearch?: () => void; update?: UpdateInfo | null }) {
   return (
     <div className="titlebar" data-tauri-drag-region>
-      <span data-tauri-drag-region>{title}</span>
+      {update && (
+        <button
+          className="update-btn"
+          onClick={update.onInstall}
+          disabled={update.progress !== null}
+          title={`Kite ${update.version}`}
+        >
+          <LineIcon name="download" size={13} />
+          {update.progress === null ? `${t("Güncelle")} · ${update.version}` : `${t("İndiriliyor")} ${update.progress}%`}
+        </button>
+      )}
+      {onSearch ? (
+        <button className="command-center" onClick={onSearch} title={t("Dosyaya git (⌘P) · Komutlar (⌘⇧P)")}>
+          <LineIcon name="search" size={14} />
+          <span>{label}</span>
+        </button>
+      ) : (
+        <span className="titlebar-label" data-tauri-drag-region>{label}</span>
+      )}
     </div>
   );
 }
@@ -35,7 +58,7 @@ export function ActivityBar({ view, sidebarOpen, gitBadge, onView, onSettings }:
   const item = (v: View, title: string, badge = 0) => (
     <button
       className={`activity-item ${sidebarOpen && view === v ? "active" : ""}`}
-      title={title}
+      title={t(title)}
       onClick={() => onView(v)}
     >
       <Icon name={v} />
@@ -49,7 +72,7 @@ export function ActivityBar({ view, sidebarOpen, gitBadge, onView, onSettings }:
       {item("git", "Kaynak kontrolü (⌘⇧G)", gitBadge)}
       {item("claude", "Claude oturumları (⌘⇧C)")}
       <div style={{ flex: 1 }} />
-      <button className="activity-item" title="Ayarlar (⌘,)" onClick={onSettings}>
+      <button className="activity-item" title={t("Ayarlar (⌘,)")} onClick={onSettings}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
@@ -68,7 +91,7 @@ function Icon({ name }: { name: keyof typeof icons }) {
   );
 }
 
-type Toggle = { label: string; title: string; on: boolean; fn: () => void };
+type Toggle = { label: ReactNode; title: string; on: boolean; fn: () => void };
 
 type StatusItem = string | { label: string; title: string; onClick: () => void };
 
@@ -80,16 +103,16 @@ export function StatusBar({ left, right, toggles }: { left: StatusItem[]; right:
           typeof s === "string" ? (
             <span key={s}>{s}</span>
           ) : (
-            <button key={s.label} className="status-toggle" title={s.title} onClick={s.onClick}>{s.label}</button>
+            <button key={s.title} className="status-toggle" title={t(s.title)} onClick={s.onClick}>{s.label}</button>
           ),
         )}
       </div>
       <div>
         {right.map((s) => <span key={s}>{s}</span>)}
         <span className="status-toggles">
-          {toggles.map((t) => (
-            <button key={t.label} className={`status-toggle ${t.on ? "on" : ""}`} title={t.title} onClick={t.fn}>
-              {t.label}
+          {toggles.map((tg) => (
+            <button key={tg.title} className={`status-toggle ${tg.on ? "on" : ""}`} title={t(tg.title)} onClick={tg.fn}>
+              {tg.label}
             </button>
           ))}
         </span>

@@ -1,4 +1,5 @@
 // Kite mark and the swaying-kite loader. Outlines come from assets/source/kite-skeleton.svg.
+import { t } from "../lib/i18n";
 
 import { KITE_PATHS } from "../lib/kitePaths";
 
@@ -17,7 +18,7 @@ function KiteShape() {
 
 export function KiteMark({ size = 64, color = "var(--accent)" }: { size?: number; color?: string }) {
   return (
-    <svg width={(size * KITE_W) / KITE_H} height={size} viewBox={`0 0 ${KITE_W} ${KITE_H}`} fill={color} aria-label="Kite">
+    <svg width={(size * KITE_W) / KITE_H} height={size} viewBox={`0 0 ${KITE_W} ${KITE_H}`} fill={color} aria-label={t("Kite")}>
       <KiteShape />
     </svg>
   );

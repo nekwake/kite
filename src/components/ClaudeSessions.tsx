@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { t } from "../lib/i18n";
+import { Chevron, Icon } from "../lib/icons";
 import { basename, claude, ClaudeSession } from "../lib/api";
 import { KiteLoader } from "./KiteLogo";
 
@@ -74,21 +76,21 @@ export function ClaudeSessions({ root, visible, openSessionIds, onResume, onNew 
   return (
     <div className="sidebar-section">
       <div className="sidebar-header">
-        <span>CLAUDE OTURUMLARI</span>
+        <span>{t("CLAUDE OTURUMLARI")}</span>
         <div className="header-actions">
-          <button className="icon-btn" onClick={load} title="Yenile">↻</button>
+          <button className="icon-btn" onClick={load} title={t("Yenile")}><Icon name="refresh" /></button>
         </div>
       </div>
 
       <div className="sessions-top">
-        <button className="primary-btn sessions-new" onClick={onNew}>+ Yeni oturum <kbd>⌘L</kbd></button>
+        <button className="primary-btn sessions-new" onClick={onNew}>{t("+ Yeni oturum")} <kbd>{t("⌘L")}</kbd></button>
         <div className="segmented">
-          <button className={scope === "project" ? "on" : ""} onClick={() => changeScope("project")}>Bu proje</button>
-          <button className={scope === "all" ? "on" : ""} onClick={() => changeScope("all")}>Tüm projeler</button>
+          <button className={scope === "project" ? "on" : ""} onClick={() => changeScope("project")}>{t("Bu proje")}</button>
+          <button className={scope === "all" ? "on" : ""} onClick={() => changeScope("all")}>{t("Tüm projeler")}</button>
         </div>
         <input
           className="search-input sessions-filter"
-          placeholder="Oturumlarda ara"
+          placeholder={t("Oturumlarda ara")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           spellCheck={false}
@@ -96,7 +98,7 @@ export function ClaudeSessions({ root, visible, openSessionIds, onResume, onNew 
       </div>
 
       <div className="tree">
-        {sessions === null && <div className="git-empty"><KiteLoader size={18} label="Oturumlar okunuyor…" /></div>}
+        {sessions === null && <div className="git-empty"><KiteLoader size={18} label={t("Oturumlar okunuyor…")} /></div>}
         {sessions && groups.length === 0 && (
           <div className="git-empty">
             {filter ? "Eşleşen oturum yok" : scope === "project" ? `${basename(root)} için henüz Claude oturumu yok.` : "Henüz Claude oturumu yok."}
@@ -107,7 +109,7 @@ export function ClaudeSessions({ root, visible, openSessionIds, onResume, onNew 
           return (
             <div key={key} className="session-group">
               <div className="tree-row change-group-head" onClick={() => toggleGroup(key)} title={scope === "all" ? key : undefined}>
-                <span className="tree-chevron">{open ? "▾" : "▸"}</span>
+                <span className="tree-chevron"><Chevron open={open} /></span>
                 <span>{scope === "all" ? basename(key) : key}</span>
                 <span className="search-count">{items.length}</span>
               </div>
@@ -128,7 +130,7 @@ export function ClaudeSessions({ root, visible, openSessionIds, onResume, onNew 
                       <span>{relativeTime(s.updated)}</span>
                       <span>{s.prompts} mesaj</span>
                       {s.branch && s.branch !== "HEAD" && <span>⎇ {s.branch}</span>}
-                      {s.entrypoint === "claude-desktop" && <span className="session-badge" title="Claude masaüstü uygulamasında başlatıldı">masaüstü</span>}
+                      {s.entrypoint === "claude-desktop" && <span className="session-badge" title={t("Claude masaüstü uygulamasında başlatıldı")}>{t("masaüstü")}</span>}
                     </div>
                   </div>
                 ))}

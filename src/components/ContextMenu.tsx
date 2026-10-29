@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { t } from "../lib/i18n";
 
 export type MenuItem =
   | { label: string; shortcut?: string; danger?: boolean; disabled?: boolean; onClick: () => void }
@@ -53,7 +54,7 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
               item.onClick();
             }}
           >
-            <span>{item.label}</span>
+            <span>{t(item.label)}</span>
             {item.shortcut && <kbd>{item.shortcut}</kbd>}
           </button>
         ),

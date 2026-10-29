@@ -1,4 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
+import { t as tr } from "../lib/i18n";
+import { Icon } from "../lib/icons";
 import Editor, { DiffEditor } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { languageFor } from "../lib/monaco";
@@ -124,7 +126,7 @@ export function EditorArea(props: Props) {
 
   const splitZone = props.canSplit && (
     <div className="split-zone" data-tab-drop="right">
-      <span>Sağ panele taşı</span>
+      <span>{tr("Sağ panele taşı")}</span>
     </div>
   );
 
@@ -134,17 +136,17 @@ export function EditorArea(props: Props) {
         {splitZone}
         <div className="brand brand-faded"><KiteMark size={72} /></div>
         <div className="shortcuts">
-          <span>Dosyaya git</span><kbd>⌘P</kbd>
-          <span>Komut paleti</span><kbd>⌘⇧P</kbd>
-          <span>Yeni dosya</span><kbd>⌘N</kbd>
-          <span>Projede ara</span><kbd>⌘⇧F</kbd>
-          <span>Git</span><kbd>⌘⇧G</kbd>
-          <span>Kenar çubuğu</span><kbd>⌘B</kbd>
-          <span>Terminal</span><kbd>⌘J</kbd>
-          <span>Yeni Claude oturumu</span><kbd>⌘L</kbd>
-          <span>Claude oturumları</span><kbd>⌘⇧C</kbd>
-          <span>Yeni pencere</span><kbd>⌘⇧N</kbd>
-          <span>Ayarlar</span><kbd>⌘,</kbd>
+          <span>{tr("Dosyaya git")}</span><kbd>{tr("⌘P")}</kbd>
+          <span>{tr("Komut paleti")}</span><kbd>{tr("⌘⇧P")}</kbd>
+          <span>{tr("Yeni dosya")}</span><kbd>{tr("⌘N")}</kbd>
+          <span>{tr("Projede ara")}</span><kbd>{tr("⌘⇧F")}</kbd>
+          <span>{tr("Git")}</span><kbd>{tr("⌘⇧G")}</kbd>
+          <span>{tr("Kenar çubuğu")}</span><kbd>{tr("⌘B")}</kbd>
+          <span>{tr("Terminal")}</span><kbd>{tr("⌘J")}</kbd>
+          <span>{tr("Yeni Claude oturumu")}</span><kbd>{tr("⌘L")}</kbd>
+          <span>{tr("Claude oturumları")}</span><kbd>{tr("⌘⇧C")}</kbd>
+          <span>{tr("Yeni pencere")}</span><kbd>{tr("⌘⇧N")}</kbd>
+          <span>{tr("Ayarlar")}</span><kbd>⌘,</kbd>
         </div>
       </div>
     );
@@ -166,10 +168,10 @@ export function EditorArea(props: Props) {
             onContextMenu={(e) => onTabMenu(e, t)}
             title={t.kind === "history" ? undefined : t.kind === "terminal" ? t.cwd : t.kind === "file" && t.untitled ? undefined : t.path}
           >
-            {t.kind === "file" && <FileIcon name={basename(t.path)} />}
+            {t.kind === "file" && (t.untitled ? <Icon name="file" size={15} className="tab-icon" /> : <FileIcon name={basename(t.path)} />)}
             {t.kind === "diff" && <span className="tab-icon">±</span>}
-            {t.kind === "history" && <span className="tab-icon">⎇</span>}
-            {t.kind === "terminal" && <span className="tab-icon tab-icon-claude">✦</span>}
+            {t.kind === "history" && <Icon name="history" size={15} className="tab-icon" />}
+            {t.kind === "terminal" && <Icon name="sparkle" size={15} className="tab-icon tab-icon-claude" />}
             <span>{tabTitle(t)}</span>
             <button
               className={`tab-close ${isDirty(t) ? "dirty" : ""}`}
@@ -180,11 +182,11 @@ export function EditorArea(props: Props) {
               }}
             >
               <span className="dot">●</span>
-              <span className="x">×</span>
+              <span className="x"><Icon name="close" size={14} /></span>
             </button>
           </div>
         ))}
-        <button className="tab-new" onClick={props.onNewFile} title="Yeni dosya (⌘N)">+</button>
+        <button className="tab-new" onClick={props.onNewFile} title={tr("Yeni dosya (⌘N)")}><Icon name="plus" size={17} /></button>
       </div>
       {activeFile && (
         <div className="breadcrumbs">

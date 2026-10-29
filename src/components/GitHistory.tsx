@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { t } from "../lib/i18n";
+import { Icon } from "../lib/icons";
 import { Commit, FileChange, git } from "../lib/api";
 import { computeGraph, GraphRow, LANE_COLORS } from "../lib/graph";
 import { KiteLoader } from "./KiteLogo";
@@ -86,14 +88,14 @@ export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
   }
 
   if (error) return <div className="history-empty">{error}</div>;
-  if (!commits) return <div className="history-empty"><KiteLoader size={22} label="Geçmiş yükleniyor…" /></div>;
-  if (commits.length === 0) return <div className="history-empty">Henüz commit yok</div>;
+  if (!commits) return <div className="history-empty"><KiteLoader size={22} label={t("Geçmiş yükleniyor…")} /></div>;
+  if (commits.length === 0) return <div className="history-empty">{t("Henüz commit yok")}</div>;
 
   return (
     <div className="history">
       <div className="history-toolbar">
         <span>{commits.length} commit</span>
-        <button className="icon-btn" onClick={load} title="Yenile">↻</button>
+        <button className="icon-btn" onClick={load} title={t("Yenile")}><Icon name="refresh" /></button>
       </div>
       <div className="history-list">
         {rows.map((row) => (
