@@ -2,6 +2,15 @@
 
 Hafif, hızlı, Claude ile entegre kod editörü. Tauri 2 (Rust) + React + Monaco + xterm.js.
 
+## Kurulum
+
+```bash
+npm install
+npm run install-app
+```
+
+Kite.app'i `/Applications` içine kurar ve `kite` komutunu ekler. Sonra herhangi bir klasörde `kite .`
+
 ## Geliştirme
 
 ```bash

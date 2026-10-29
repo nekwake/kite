@@ -1,0 +1,6 @@
+#!/bin/sh
+# Opens a folder in Kite: `kite .`, `kite ~/github/project`, or just `kite`.
+# If Kite is already running, the folder opens in a new window there.
+target="${1:-.}"
+dir="$(cd "$target" 2>/dev/null && pwd)" || { echo "kite: klasör bulunamadı: $target" >&2; exit 1; }
+exec open -na Kite --args "$dir"
