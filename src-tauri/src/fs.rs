@@ -63,3 +63,47 @@ pub fn initial_dir() -> Option<String> {
     let path = std::fs::canonicalize(arg).ok()?;
     path.is_dir().then(|| path.to_string_lossy().into_owned())
 }
+
+#[tauri::command]
+pub async fn create_file(path: String) -> Result<(), String> {
+    if std::path::Path::new(&path).exists() {
+        return Err("Bu adla bir dosya zaten var".into());
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_dir(path: String) -> Result<(), String> {
+    if std::path::Path::new(&path).exists() {
+        return Err("Bu adla bir klasör zaten var".into());
+    }
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn rename_path(from: String, to: String) -> Result<(), String> {
+    if std::path::Path::new(&to).exists() {
+        return Err("Hedefte aynı adla bir öğe var".into());
+    }
+    std::fs::rename(&from, &to).map_err(|e| e.to_string())
+}
+
+/// Moves to the macOS Trash, so a delete can be undone from Finder
+#[tauri::command]
+pub async fn trash_path(path: String) -> Result<(), String> {
+    trash::delete(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn reveal_in_finder(path: String) -> Result<(), String> {
+    std::process::Command::new("open")
+        .args(["-R", &path])
+        .status()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}

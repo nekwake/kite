@@ -4,6 +4,7 @@ mod git;
 mod menu;
 mod pty;
 mod search;
+mod watch;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -12,6 +13,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
         .manage(claude::ClaudeState::default())
+        .manage(watch::WatchState::default())
         .setup(|app| {
             app.set_menu(menu::build(app.handle())?)?;
             menu::forward_events(app.handle());
@@ -22,6 +24,12 @@ pub fn run() {
             fs::read_dir,
             fs::read_file,
             fs::write_file,
+            fs::create_file,
+            fs::create_dir,
+            fs::rename_path,
+            fs::trash_path,
+            fs::reveal_in_finder,
+            watch::watch_root,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

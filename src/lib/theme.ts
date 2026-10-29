@@ -3,8 +3,8 @@ import * as monaco from "monaco-editor";
 export type AccentPreset = { id: string; name: string; color: string };
 
 export const ACCENT_PRESETS: AccentPreset[] = [
-  { id: "neon", name: "Neon", color: "#ddff00" },
-  { id: "lime", name: "Limon", color: "#c6e05a" },
+  { id: "lemon", name: "Limon", color: "#c6e05a" },
+  { id: "white", name: "Beyaz", color: "#ececec" },
   { id: "mint", name: "Nane", color: "#3ddc97" },
   { id: "sky", name: "Gökyüzü", color: "#4c8dff" },
   { id: "violet", name: "Mor", color: "#a78bfa" },
@@ -15,9 +15,13 @@ export const ACCENT_PRESETS: AccentPreset[] = [
 const ACCENT_KEY = "kite.accent";
 export const DEFAULT_ACCENT = ACCENT_PRESETS[0].color;
 
+// Neon was retired; anyone who had picked it moves to the default (Lemon)
+const RETIRED = new Set(["#ddff00"]);
+
 export function storedAccent(): string {
   try {
-    return localStorage.getItem(ACCENT_KEY) ?? DEFAULT_ACCENT;
+    const c = localStorage.getItem(ACCENT_KEY) ?? DEFAULT_ACCENT;
+    return RETIRED.has(c.toLowerCase()) ? DEFAULT_ACCENT : c;
   } catch {
     return DEFAULT_ACCENT;
   }

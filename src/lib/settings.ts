@@ -1,0 +1,47 @@
+import { useEffect, useState } from "react";
+
+export type Settings = { editorFontSize: number; terminalFontSize: number; autoSave: boolean };
+
+const KEY = "kite.settings";
+export const DEFAULT_SETTINGS: Settings = { editorFontSize: 13, terminalFontSize: 13, autoSave: false };
+
+export function loadSettings(): Settings {
+  try {
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+let current = loadSettings();
+
+export const getSettings = () => current;
+
+export function updateSettings(patch: Partial<Settings>) {
+  current = { ...current, ...patch };
+  current.editorFontSize = Math.min(28, Math.max(9, current.editorFontSize));
+  current.terminalFontSize = Math.min(28, Math.max(9, current.terminalFontSize));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(current));
+  } catch {}
+  window.dispatchEvent(new CustomEvent("kite-settings", { detail: current }));
+}
+
+/** ⌘= / ⌘- / ⌘0 scale editor and terminal together */
+export function zoom(delta: number | "reset") {
+  if (delta === "reset") {
+    updateSettings({ editorFontSize: DEFAULT_SETTINGS.editorFontSize, terminalFontSize: DEFAULT_SETTINGS.terminalFontSize });
+  } else {
+    updateSettings({ editorFontSize: current.editorFontSize + delta, terminalFontSize: current.terminalFontSize + delta });
+  }
+}
+
+export function useSettings(): Settings {
+  const [s, setS] = useState(current);
+  useEffect(() => {
+    const on = (e: Event) => setS((e as CustomEvent<Settings>).detail);
+    window.addEventListener("kite-settings", on);
+    return () => window.removeEventListener("kite-settings", on);
+  }, []);
+  return s;
+}

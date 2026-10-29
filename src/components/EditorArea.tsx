@@ -3,6 +3,9 @@ import Editor, { DiffEditor } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { languageFor } from "../lib/monaco";
 import { isDirty, Tab, tabTitle } from "../lib/tabs";
+import { useSettings } from "../lib/settings";
+import { FileIcon } from "../lib/fileIcons";
+import { basename } from "../lib/api";
 import { KiteMark } from "./KiteLogo";
 import { TerminalView } from "./TerminalPanel";
 
@@ -18,6 +21,8 @@ type Props = {
   onCursor: (line: number, col: number) => void;
   reveal: Reveal | null;
   renderHistory: () => ReactNode;
+  root: string;
+  onTabMenu: (e: React.MouseEvent, tab: Tab) => void;
 };
 
 const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
@@ -35,8 +40,11 @@ const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
   stickyScroll: { enabled: true },
 };
 
-export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCursor, reveal, renderHistory }: Props) {
+export function EditorArea(props: Props) {
+  const { tabs, activeId, onSelect, onClose, onChange, onCursor, reveal, renderHistory, root, onTabMenu } = props;
   const active = tabs.find((t) => t.id === activeId);
+  const { editorFontSize } = useSettings();
+  const editorOptions = { ...EDITOR_OPTIONS, fontSize: editorFontSize, lineHeight: Math.round(editorFontSize * 1.55) };
   const activeFile = active?.kind === "file" ? active : null;
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -62,6 +70,7 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
         <div className="brand brand-faded"><KiteMark size={72} /></div>
         <div className="shortcuts">
           <span>Dosyaya git</span><kbd>⌘P</kbd>
+          <span>Komut paleti</span><kbd>⌘⇧P</kbd>
           <span>Projede ara</span><kbd>⌘⇧F</kbd>
           <span>Git</span><kbd>⌘⇧G</kbd>
           <span>Klasör aç</span><kbd>⌘O</kbd>
@@ -86,8 +95,10 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
             className={`tab ${t.id === activeId ? "active" : ""} tab-${t.kind}`}
             onClick={() => onSelect(t.id)}
             onAuxClick={(e) => e.button === 1 && onClose(t.id)}
+            onContextMenu={(e) => onTabMenu(e, t)}
             title={t.kind === "history" ? undefined : t.kind === "terminal" ? t.cwd : t.path}
           >
+            {t.kind === "file" && <FileIcon name={basename(t.path)} />}
             {t.kind === "diff" && <span className="tab-icon">±</span>}
             {t.kind === "history" && <span className="tab-icon">⎇</span>}
             {t.kind === "terminal" && <span className="tab-icon tab-icon-claude">✦</span>}
@@ -105,6 +116,19 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
           </div>
         ))}
       </div>
+      {activeFile && (
+        <div className="breadcrumbs">
+          {(activeFile.path.startsWith(root + "/") ? activeFile.path.slice(root.length + 1) : activeFile.path)
+            .split("/")
+            .map((seg, i, all) => (
+              <span key={i} className={i === all.length - 1 ? "crumb-last" : ""}>
+                {i === all.length - 1 && <FileIcon name={seg} />}
+                {seg}
+                {i < all.length - 1 && <span className="crumb-sep">›</span>}
+              </span>
+            ))}
+        </div>
+      )}
       <div className="editor-host">
         {active.kind === "file" && (
           <Editor
@@ -124,7 +148,7 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
                 onCursor(e.position.lineNumber, e.position.column),
               );
             }}
-            options={EDITOR_OPTIONS}
+            options={editorOptions}
           />
         )}
         {active.kind === "diff" && (
@@ -137,7 +161,7 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
             originalModelPath={`/__diff__/a/${active.id}`}
             modifiedModelPath={`/__diff__/b/${active.id}`}
             options={{
-              ...EDITOR_OPTIONS,
+              ...editorOptions,
               readOnly: true,
               originalEditable: false,
               renderSideBySide: true,
@@ -151,8 +175,8 @@ export function EditorArea({ tabs, activeId, onSelect, onClose, onChange, onCurs
         {tabs.map(
           (t) =>
             t.kind === "terminal" && (
-              <div key={t.id} className="center-terminal" style={{ display: t.id === activeId ? "block" : "none" }}>
-                <TerminalView tab={t} active={t.id === activeId} onExit={() => onClose(t.id)} fontSize={13} />
+              <div key={t.id} className="center-terminal" data-tab-id={t.id} style={{ display: t.id === activeId ? "block" : "none" }}>
+                <TerminalView tab={t} active={t.id === activeId} onExit={() => onClose(t.id)} />
               </div>
             ),
         )}

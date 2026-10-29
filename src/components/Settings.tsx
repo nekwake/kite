@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { ACCENT_PRESETS, applyAccent, currentAccent } from "../lib/theme";
 import { KiteMark } from "./KiteLogo";
+import { updateSettings, useSettings } from "../lib/settings";
 
 export function Settings({ onClose }: { onClose: () => void }) {
   const [accent, setAccent] = useState(currentAccent());
+  const settings = useSettings();
 
   const pick = (color: string) => {
     setAccent(color);
@@ -46,6 +48,32 @@ export function Settings({ onClose }: { onClose: () => void }) {
             <kbd>⌘P</kbd>
           </div>
         </div>
+
+        <div className="settings-section settings-rows">
+          <Stepper label="Editör yazı boyutu" value={settings.editorFontSize} onChange={(v) => updateSettings({ editorFontSize: v })} />
+          <Stepper label="Terminal yazı boyutu" value={settings.terminalFontSize} onChange={(v) => updateSettings({ terminalFontSize: v })} />
+          <label className="settings-row">
+            <span>
+              Otomatik kaydet
+              <small>Yazmayı bıraktıktan 1 saniye sonra kaydeder</small>
+            </span>
+            <input type="checkbox" checked={settings.autoSave} onChange={(e) => updateSettings({ autoSave: e.target.checked })} />
+          </label>
+          <div className="settings-hint">⌘+ / ⌘- / ⌘0 ile editör ve terminali birlikte büyütüp küçültebilirsin.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="settings-row">
+      <span>{label}</span>
+      <div className="stepper">
+        <button onClick={() => onChange(value - 1)}>−</button>
+        <span>{value}</span>
+        <button onClick={() => onChange(value + 1)}>+</button>
       </div>
     </div>
   );

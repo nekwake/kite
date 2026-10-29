@@ -6,6 +6,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "../lib/api";
 import { currentAccent } from "../lib/theme";
+import { getSettings, Settings } from "../lib/settings";
+import { DROP_ATTR, DROP_EVENT } from "../lib/drag";
 
 export type TermTab = { id: number; title: string; cwd: string; command?: string };
 
@@ -64,7 +66,7 @@ export function TerminalPanel({ tabs, activeId, onSelect, onNew, onClose, onHide
 const THEME = {
   background: "#141414",
   foreground: "#d4d4d4",
-  cursor: "#ddff00",
+  cursor: "#c6e05a",
   cursorAccent: "#141414",
   selectionBackground: "#ffffff30",
   black: "#1e1e1e", red: "#f14c4c", green: "#23d18b", yellow: "#f5f543",
@@ -74,9 +76,22 @@ const THEME = {
   brightCyan: "#29b8db", brightWhite: "#ffffff",
 };
 
-type ViewProps = { tab: Pick<TermTab, "cwd" | "command">; active: boolean; onExit: () => void; fontSize?: number };
+type ViewProps = { tab: Pick<TermTab, "cwd" | "command">; active: boolean; onExit: () => void };
 
-export function TerminalView({ tab, active, onExit, fontSize = 12.5 }: ViewProps) {
+/** Text to type for dropped paths: `@relative` mentions for Claude, quoted paths for a shell */
+export function pathsForTerminal(paths: string[], cwd: string, claude: boolean): string {
+  return (
+    paths
+      .map((p) => {
+        const rel = p.startsWith(cwd + "/") ? p.slice(cwd.length + 1) : p;
+        if (claude) return `@${rel}`;
+        return /[^\w@%+=:,./-]/.test(rel) ? `'${rel.replace(/'/g, "'\\''")}'` : rel;
+      })
+      .join(" ") + " "
+  );
+}
+
+export function TerminalView({ tab, active, onExit }: ViewProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -86,7 +101,7 @@ export function TerminalView({ tab, active, onExit, fontSize = 12.5 }: ViewProps
   useEffect(() => {
     const term = new Terminal({
       fontFamily: "'SF Mono', Menlo, monospace",
-      fontSize,
+      fontSize: getSettings().terminalFontSize,
       lineHeight: 1.2,
       cursorBlink: true,
       allowProposedApi: true,
@@ -139,10 +154,30 @@ export function TerminalView({ tab, active, onExit, fontSize = 12.5 }: ViewProps
     };
     window.addEventListener("kite-accent", onAccent);
 
+    const onSettings = (e: Event) => {
+      term.options.fontSize = (e as CustomEvent<Settings>).detail.terminalFontSize;
+      try {
+        fit.fit();
+      } catch {}
+    };
+    window.addEventListener("kite-settings", onSettings);
+
+    // Files dragged from the tree or Finder are typed in as paths
+    const host = hostRef.current!;
+    const onDrop = (e: Event) => {
+      const paths = (e as CustomEvent<string[]>).detail;
+      if (ptyId === null || !paths.length) return;
+      api.ptyWrite(ptyId, pathsForTerminal(paths, tab.cwd, !!tab.command?.startsWith("claude")));
+      term.focus();
+    };
+    host.addEventListener(DROP_EVENT, onDrop);
+
     return () => {
       disposed = true;
       ro.disconnect();
       window.removeEventListener("kite-accent", onAccent);
+      window.removeEventListener("kite-settings", onSettings);
+      host.removeEventListener(DROP_EVENT, onDrop);
       if (ptyId !== null) api.ptyKill(ptyId);
       term.dispose();
     };
@@ -160,5 +195,12 @@ export function TerminalView({ tab, active, onExit, fontSize = 12.5 }: ViewProps
     });
   }, [active]);
 
-  return <div ref={hostRef} className="terminal-host" style={{ display: active ? "block" : "none" }} />;
+  return (
+    <div
+      ref={hostRef}
+      className="terminal-host"
+      {...{ [DROP_ATTR]: "" }}
+      style={{ display: active ? "block" : "none" }}
+    />
+  );
 }

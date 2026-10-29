@@ -15,6 +15,12 @@ export const api = {
   readFile: (path: string) => invoke<string>("read_file", { path }),
   writeFile: (path: string, contents: string) =>
     invoke<void>("write_file", { path, contents }),
+  createFile: (path: string) => invoke<void>("create_file", { path }),
+  createDir: (path: string) => invoke<void>("create_dir", { path }),
+  renamePath: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
+  trashPath: (path: string) => invoke<void>("trash_path", { path }),
+  revealInFinder: (path: string) => invoke<void>("reveal_in_finder", { path }),
+  watchRoot: (root: string) => invoke<void>("watch_root", { root }),
 
   ptySpawn: (cwd: string, cols: number, rows: number, onEvent: (e: PtyEvent) => void) => {
     const channel = new Channel<PtyEvent>();
@@ -32,6 +38,9 @@ export const api = {
 };
 
 export const basename = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
+export const dirname = (path: string) => path.slice(0, path.lastIndexOf("/")) || "/";
+export const relativeTo = (root: string, path: string) =>
+  path === root ? "." : path.startsWith(root + "/") ? path.slice(root.length + 1) : path;
 
 export type FileChange = { path: string; rel: string; status: string; staged: boolean };
 export type GitStatus = {
