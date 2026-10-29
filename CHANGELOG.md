@@ -1,6 +1,12 @@
 # Değişiklikler
 
-Her sürüm için kısa notlar. Yeni pencerede (⌘⇧N) çalışan sürümün notları görünür.
+Her sürüm için kısa notlar.
+
+## 0.2.0
+
+- İlk herkese açık sürüm: GitHub'dan indirilebilir .dmg
+- Kurulu Kite yeni sürümleri sağ üstteki Güncelle düğmesiyle gösterir
+- Giriş ekranında "Did You Know?" bilgisi
 
 ## 0.1.0
 
