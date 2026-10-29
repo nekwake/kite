@@ -5,6 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "../lib/api";
+import { currentAccent } from "../lib/theme";
 
 export type TermTab = { id: number; title: string; cwd: string; command?: string };
 
@@ -63,7 +64,8 @@ export function TerminalPanel({ tabs, activeId, onSelect, onNew, onClose, onHide
 const THEME = {
   background: "#141414",
   foreground: "#d4d4d4",
-  cursor: "#d4d4d4",
+  cursor: "#ddff00",
+  cursorAccent: "#141414",
   selectionBackground: "#ffffff30",
   black: "#1e1e1e", red: "#f14c4c", green: "#23d18b", yellow: "#f5f543",
   blue: "#3b8eea", magenta: "#d670d6", cyan: "#29b8db", white: "#e5e5e5",
@@ -88,7 +90,7 @@ function TerminalView({ tab, active, onExit }: { tab: TermTab; active: boolean; 
       allowProposedApi: true,
       macOptionIsMeta: true,
       scrollback: 10000,
-      theme: THEME,
+      theme: { ...THEME, cursor: currentAccent() },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -130,9 +132,15 @@ function TerminalView({ tab, active, onExit }: { tab: TermTab; active: boolean; 
     });
     ro.observe(hostRef.current!);
 
+    const onAccent = (e: Event) => {
+      term.options.theme = { ...THEME, cursor: (e as CustomEvent<string>).detail };
+    };
+    window.addEventListener("kite-accent", onAccent);
+
     return () => {
       disposed = true;
       ro.disconnect();
+      window.removeEventListener("kite-accent", onAccent);
       if (ptyId !== null) api.ptyKill(ptyId);
       term.dispose();
     };

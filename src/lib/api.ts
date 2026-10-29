@@ -32,3 +32,42 @@ export const api = {
 };
 
 export const basename = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
+
+export type FileChange = { path: string; rel: string; status: string; staged: boolean };
+export type GitStatus = {
+  isRepo: boolean;
+  branch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  changes: FileChange[];
+};
+export type FileVersions = { original: string; modified: string };
+export type Branches = { current: string | null; local: string[] };
+export type Commit = {
+  hash: string;
+  parents: string[];
+  author: string;
+  time: number;
+  refs: string[];
+  subject: string;
+};
+
+export const git = {
+  status: (root: string) => invoke<GitStatus>("git_status", { root }),
+  fileVersions: (root: string, path: string, staged: boolean, rev?: string) =>
+    invoke<FileVersions>("git_file_versions", { root, path, staged, rev: rev ?? null }),
+  stage: (root: string, paths: string[]) => invoke<void>("git_stage", { root, paths }),
+  unstage: (root: string, paths: string[]) => invoke<void>("git_unstage", { root, paths }),
+  discard: (root: string, paths: string[], untracked: boolean) =>
+    invoke<void>("git_discard", { root, paths, untracked }),
+  commit: (root: string, message: string, all: boolean) =>
+    invoke<void>("git_commit", { root, message, all }),
+  branches: (root: string) => invoke<Branches>("git_branches", { root }),
+  switchBranch: (root: string, branch: string, create: boolean) =>
+    invoke<void>("git_switch", { root, branch, create }),
+  init: (root: string) => invoke<void>("git_init", { root }),
+  sync: (root: string, op: "pull" | "push" | "fetch") => invoke<string>("git_sync", { root, op }),
+  log: (root: string, limit = 300) => invoke<Commit[]>("git_log", { root, limit }),
+  commitFiles: (root: string, hash: string) => invoke<FileChange[]>("git_commit_files", { root, hash }),
+};

@@ -1,6 +1,7 @@
 import ReactDOM from "react-dom/client";
 import "./lib/monaco";
 import "./styles.css";
+import { applyAccent, storedAccent } from "./lib/theme";
 import App from "./App";
 
 // Hide the WebView's browser menu (Reload, Inspect Element…). Text fields keep
@@ -12,6 +13,8 @@ document.addEventListener("contextmenu", (e) => {
   if (import.meta.env.DEV && e.altKey) return;
   e.preventDefault();
 });
+
+applyAccent(storedAccent(), false);
 
 // No StrictMode: its double-mount would spawn every shell twice in dev
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);

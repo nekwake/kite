@@ -1,0 +1,392 @@
+//! Git panel backend. Shells out to the system `git` so behavior, config and
+//! credentials match the user's terminal exactly.
+
+use serde::Serialize;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+    let out = Command::new("git")
+        .current_dir(dir)
+        .args(args)
+        // Never block on a credential prompt; don't take index locks for reads
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .map_err(|e| format!("git çalıştırılamadı: {e}"))?;
+    if out.status.success() {
+        Ok(out.stdout)
+    } else {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        Err(if err.is_empty() { format!("git {} başarısız", args[0]) } else { err })
+    }
+}
+
+fn git_str(dir: &Path, args: &[&str]) -> Result<String, String> {
+    git(dir, args).map(|b| String::from_utf8_lossy(&b).into_owned())
+}
+
+/// Repository top level for `root`, canonicalized so paths can be compared.
+fn toplevel(root: &str) -> Result<PathBuf, String> {
+    let top = git_str(Path::new(root), &["rev-parse", "--show-toplevel"])?;
+    std::fs::canonicalize(top.trim()).map_err(|e| e.to_string())
+}
+
+/// Absolute path from the UI -> repo-relative path for git.
+fn rel(top: &Path, path: &str) -> String {
+    let p = std::fs::canonicalize(path).unwrap_or_else(|_| {
+        // Deleted files can't be canonicalized; canonicalize their parent instead
+        let p = Path::new(path);
+        match (p.parent().and_then(|d| std::fs::canonicalize(d).ok()), p.file_name()) {
+            (Some(dir), Some(name)) => dir.join(name),
+            _ => p.to_path_buf(),
+        }
+    });
+    p.strip_prefix(top).unwrap_or(&p).to_string_lossy().into_owned()
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileChange {
+    path: String,
+    rel: String,
+    /// Single-letter status: M, A, D, R, U (untracked), C (conflict)
+    status: String,
+    staged: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatus {
+    is_repo: bool,
+    branch: Option<String>,
+    upstream: Option<String>,
+    ahead: u32,
+    behind: u32,
+    changes: Vec<FileChange>,
+}
+
+fn parse_branch_header(h: &str, s: &mut GitStatus) {
+    // "## main...origin/main [ahead 1, behind 2]", "## No commits yet on main", "## HEAD (no branch)"
+    let h = h.trim_start_matches("## ");
+    if let Some(b) = h.strip_prefix("No commits yet on ") {
+        s.branch = Some(b.to_string());
+        return;
+    }
+    let (names, counts) = match h.find(" [") {
+        Some(i) => (&h[..i], &h[i + 2..h.len() - 1]),
+        None => (h, ""),
+    };
+    match names.split_once("...") {
+        Some((b, u)) => {
+            s.branch = Some(b.to_string());
+            s.upstream = Some(u.to_string());
+        }
+        None => s.branch = Some(names.to_string()),
+    }
+    for part in counts.split(", ") {
+        if let Some(n) = part.strip_prefix("ahead ") {
+            s.ahead = n.parse().unwrap_or(0);
+        } else if let Some(n) = part.strip_prefix("behind ") {
+            s.behind = n.parse().unwrap_or(0);
+        }
+    }
+}
+
+fn parse_status(out: &str, top: &Path) -> GitStatus {
+    let mut s = GitStatus { is_repo: true, branch: None, upstream: None, ahead: 0, behind: 0, changes: vec![] };
+    let mut fields = out.split('\0').filter(|f| !f.is_empty());
+    while let Some(f) = fields.next() {
+        if f.starts_with("## ") {
+            parse_branch_header(f, &mut s);
+            continue;
+        }
+        if f.len() < 4 {
+            continue;
+        }
+        let (x, y, path) = (f.as_bytes()[0] as char, f.as_bytes()[1] as char, &f[3..]);
+        if x == 'R' || x == 'C' {
+            fields.next(); // rename source
+        }
+        let abs = top.join(path).to_string_lossy().into_owned();
+        let push = |s: &mut GitStatus, status: char, staged: bool| {
+            s.changes.push(FileChange { path: abs.clone(), rel: path.to_string(), status: status.to_string(), staged });
+        };
+        let conflict = x == 'U' || y == 'U' || (x == 'A' && y == 'A') || (x == 'D' && y == 'D');
+        if conflict {
+            push(&mut s, 'C', false);
+        } else if x == '?' {
+            push(&mut s, 'U', false);
+        } else {
+            if x != ' ' {
+                push(&mut s, x, true);
+            }
+            if y != ' ' {
+                push(&mut s, y, false);
+            }
+        }
+    }
+    s
+}
+
+#[tauri::command]
+pub async fn git_status(root: String) -> Result<GitStatus, String> {
+    let Ok(top) = toplevel(&root) else {
+        return Ok(GitStatus { is_repo: false, branch: None, upstream: None, ahead: 0, behind: 0, changes: vec![] });
+    };
+    let out = git_str(&top, &["status", "--porcelain=v1", "-b", "-z", "-uall"])?;
+    Ok(parse_status(&out, &top))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileVersions {
+    original: String,
+    modified: String,
+}
+
+fn show(top: &Path, spec: &str) -> String {
+    git(top, &["show", spec]).map(to_text).unwrap_or_default()
+}
+
+fn to_text(bytes: Vec<u8>) -> String {
+    if bytes.iter().take(8000).any(|&b| b == 0) {
+        "(ikili dosya)".into()
+    } else {
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+}
+
+/// Both sides of a diff. `rev` = a commit (its parent vs it); otherwise
+/// staged (HEAD vs index) or working tree (index vs file on disk).
+#[tauri::command]
+pub async fn git_file_versions(root: String, path: String, staged: bool, rev: Option<String>) -> Result<FileVersions, String> {
+    let top = toplevel(&root)?;
+    let r = rel(&top, &path);
+    Ok(match rev {
+        Some(h) => FileVersions { original: show(&top, &format!("{h}^:{r}")), modified: show(&top, &format!("{h}:{r}")) },
+        None if staged => FileVersions { original: show(&top, &format!("HEAD:{r}")), modified: show(&top, &format!(":{r}")) },
+        None => FileVersions {
+            original: show(&top, &format!(":{r}")),
+            modified: std::fs::read(&path).map(to_text).unwrap_or_default(),
+        },
+    })
+}
+
+fn with_paths<'a>(base: &[&'a str], rels: &'a [String]) -> Vec<&'a str> {
+    let mut args = base.to_vec();
+    args.push("--");
+    args.extend(rels.iter().map(String::as_str));
+    args
+}
+
+#[tauri::command]
+pub async fn git_stage(root: String, paths: Vec<String>) -> Result<(), String> {
+    let top = toplevel(&root)?;
+    let rels: Vec<String> = paths.iter().map(|p| rel(&top, p)).collect();
+    git(&top, &with_paths(&["add", "-A"], &rels)).map(|_| ())
+}
+
+#[tauri::command]
+pub async fn git_unstage(root: String, paths: Vec<String>) -> Result<(), String> {
+    let top = toplevel(&root)?;
+    let rels: Vec<String> = paths.iter().map(|p| rel(&top, p)).collect();
+    // `restore --staged` needs a HEAD; before the first commit, drop from the index instead
+    git(&top, &with_paths(&["restore", "--staged"], &rels))
+        .or_else(|_| git(&top, &with_paths(&["rm", "--cached", "-r", "-q"], &rels)))
+        .map(|_| ())
+}
+
+/// Throws away working-tree changes. Untracked files are deleted.
+#[tauri::command]
+pub async fn git_discard(root: String, paths: Vec<String>, untracked: bool) -> Result<(), String> {
+    let top = toplevel(&root)?;
+    let rels: Vec<String> = paths.iter().map(|p| rel(&top, p)).collect();
+    let base: &[&str] = if untracked { &["clean", "-f", "-q"] } else { &["restore"] };
+    git(&top, &with_paths(base, &rels)).map(|_| ())
+}
+
+#[tauri::command]
+pub async fn git_commit(root: String, message: String, all: bool) -> Result<(), String> {
+    let top = toplevel(&root)?;
+    if all {
+        git(&top, &["add", "-A"])?;
+    }
+    git(&top, &["commit", "-q", "-m", &message]).map(|_| ())
+}
+
+#[derive(Serialize)]
+pub struct Branches {
+    current: Option<String>,
+    local: Vec<String>,
+}
+
+#[tauri::command]
+pub async fn git_branches(root: String) -> Result<Branches, String> {
+    let top = toplevel(&root)?;
+    let out = git_str(&top, &["branch", "--format=%(HEAD)%(refname:short)"])?;
+    let mut b = Branches { current: None, local: vec![] };
+    for line in out.lines() {
+        let name = line[1..].to_string();
+        if line.starts_with('*') {
+            b.current = Some(name.clone());
+        }
+        b.local.push(name);
+    }
+    Ok(b)
+}
+
+#[tauri::command]
+pub async fn git_switch(root: String, branch: String, create: bool) -> Result<(), String> {
+    let top = toplevel(&root)?;
+    let args: &[&str] = if create { &["switch", "-c", &branch] } else { &["switch", &branch] };
+    git(&top, args).map(|_| ())
+}
+
+#[tauri::command]
+pub async fn git_init(root: String) -> Result<(), String> {
+    git(Path::new(&root), &["init", "-q"]).map(|_| ())
+}
+
+#[tauri::command]
+pub async fn git_sync(root: String, op: String) -> Result<String, String> {
+    let top = toplevel(&root)?;
+    let args: &[&str] = match op.as_str() {
+        "pull" => &["pull", "--ff-only"],
+        "push" => &["push"],
+        "fetch" => &["fetch", "--all", "--prune"],
+        _ => return Err(format!("bilinmeyen işlem: {op}")),
+    };
+    git_str(&top, args)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Commit {
+    hash: String,
+    parents: Vec<String>,
+    author: String,
+    time: i64,
+    refs: Vec<String>,
+    subject: String,
+}
+
+#[tauri::command]
+pub async fn git_log(root: String, limit: u32) -> Result<Vec<Commit>, String> {
+    let top = toplevel(&root)?;
+    let n = format!("-n{limit}");
+    // An empty repository has no log yet
+    let Ok(out) = git_str(&top, &["log", "--all", "--date-order", &n, "--format=%H%x1f%P%x1f%an%x1f%at%x1f%D%x1f%s%x1e"]) else {
+        return Ok(vec![]);
+    };
+    Ok(out
+        .split('\x1e')
+        .filter_map(|rec| {
+            let f: Vec<&str> = rec.trim_start_matches('\n').split('\x1f').collect();
+            if f.len() < 6 {
+                return None;
+            }
+            Some(Commit {
+                hash: f[0].to_string(),
+                parents: f[1].split_whitespace().map(String::from).collect(),
+                author: f[2].to_string(),
+                time: f[3].parse().unwrap_or(0),
+                refs: f[4].split(", ").filter(|r| !r.is_empty()).map(String::from).collect(),
+                subject: f[5].to_string(),
+            })
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn git_commit_files(root: String, hash: String) -> Result<Vec<FileChange>, String> {
+    let top = toplevel(&root)?;
+    let out = git_str(&top, &["diff-tree", "-r", "--root", "--no-commit-id", "--name-status", "-z", "-m", "--first-parent", &hash])?;
+    let mut files = vec![];
+    let mut fields = out.split('\0').filter(|f| !f.is_empty());
+    while let Some(status) = fields.next() {
+        let letter = &status[..1];
+        if letter == "R" || letter == "C" {
+            fields.next(); // rename source
+        }
+        let Some(path) = fields.next() else { break };
+        files.push(FileChange {
+            path: top.join(path).to_string_lossy().into_owned(),
+            rel: path.to_string(),
+            status: letter.to_string(),
+            staged: false,
+        });
+    }
+    Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_status_output() {
+        let top = Path::new("/r");
+        let out = "## main...origin/main [ahead 2, behind 1]\0M  a.txt\0 M b.txt\0MM c.txt\0?? new.txt\0R  to.txt\0from.txt\0UU x.txt\0";
+        let s = parse_status(out, top);
+        assert_eq!(s.branch.as_deref(), Some("main"));
+        assert_eq!(s.upstream.as_deref(), Some("origin/main"));
+        assert_eq!((s.ahead, s.behind), (2, 1));
+        let got: Vec<(String, String, bool)> = s.changes.iter().map(|c| (c.rel.clone(), c.status.clone(), c.staged)).collect();
+        let want = [
+            ("a.txt", "M", true), ("b.txt", "M", false), ("c.txt", "M", true), ("c.txt", "M", false),
+            ("new.txt", "U", false), ("to.txt", "R", true), ("x.txt", "C", false),
+        ];
+        assert_eq!(got, want.map(|(a, b, c)| (a.to_string(), b.to_string(), c)));
+        assert_eq!(s.changes[0].path, "/r/a.txt");
+    }
+
+    #[test]
+    fn parses_fresh_repo_header() {
+        let s = parse_status("## No commits yet on main\0", Path::new("/r"));
+        assert_eq!(s.branch.as_deref(), Some("main"));
+        assert!(s.upstream.is_none());
+    }
+
+    #[test]
+    fn end_to_end_on_temp_repo() {
+        tauri::async_runtime::block_on(async {
+            let dir = std::env::temp_dir().join(format!("kite-git-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            let root = dir.to_string_lossy().into_owned();
+            git_init(root.clone()).await.unwrap();
+            for (k, v) in [("user.name", "t"), ("user.email", "t@t")] {
+                git(&dir, &["config", k, v]).unwrap();
+            }
+            let file = dir.join("a.txt").to_string_lossy().into_owned();
+            std::fs::write(&file, "bir\n").unwrap();
+
+            let s = git_status(root.clone()).await.unwrap();
+            assert_eq!(s.changes.len(), 1);
+            assert_eq!(s.changes[0].status, "U");
+
+            git_stage(root.clone(), vec![file.clone()]).await.unwrap();
+            git_unstage(root.clone(), vec![file.clone()]).await.unwrap(); // no HEAD yet
+            git_commit(root.clone(), "ilk".into(), true).await.unwrap();
+
+            std::fs::write(&file, "bir\niki\n").unwrap();
+            let v = git_file_versions(root.clone(), file.clone(), false, None).await.unwrap();
+            assert_eq!((v.original.as_str(), v.modified.as_str()), ("bir\n", "bir\niki\n"));
+
+            git_commit(root.clone(), "ikinci".into(), true).await.unwrap();
+            let log = git_log(root.clone(), 10).await.unwrap();
+            assert_eq!(log.iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["ikinci", "ilk"]);
+            assert_eq!(log[0].parents, [log[1].hash.clone()]);
+
+            let files = git_commit_files(root.clone(), log[1].hash.clone()).await.unwrap();
+            assert_eq!(files[0].rel, "a.txt");
+            let v = git_file_versions(root.clone(), file.clone(), false, Some(log[0].hash.clone())).await.unwrap();
+            assert_eq!(v.original, "bir\n");
+
+            git_switch(root.clone(), "yeni".into(), true).await.unwrap();
+            assert_eq!(git_branches(root.clone()).await.unwrap().current.as_deref(), Some("yeni"));
+            std::fs::remove_dir_all(&dir).unwrap();
+        });
+    }
+}

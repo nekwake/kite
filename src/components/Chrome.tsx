@@ -27,26 +27,27 @@ type ActivityProps = {
   view: View;
   sidebarOpen: boolean;
   agentOpen: boolean;
+  gitBadge: number;
   onView: (v: View) => void;
   onToggleAgent: () => void;
 };
 
-export function ActivityBar({ view, sidebarOpen, agentOpen, onView, onToggleAgent }: ActivityProps) {
-  const item = (v: View, title: string, disabled = false) => (
+export function ActivityBar({ view, sidebarOpen, agentOpen, gitBadge, onView, onToggleAgent }: ActivityProps) {
+  const item = (v: View, title: string, badge = 0) => (
     <button
       className={`activity-item ${sidebarOpen && view === v ? "active" : ""}`}
-      title={disabled ? `${title} (yakında)` : title}
-      disabled={disabled}
+      title={title}
       onClick={() => onView(v)}
     >
       <Icon name={v} />
+      {badge > 0 && <span className="activity-badge">{badge > 99 ? "99+" : badge}</span>}
     </button>
   );
   return (
     <div className="activity-bar">
-      {item("files", "Dosyalar (⌘B)")}
+      {item("files", "Dosyalar (⌘⇧E)")}
       {item("search", "Ara (⌘⇧F)")}
-      {item("git", "Git", true)}
+      {item("git", "Kaynak kontrolü (⌘⇧G)", gitBadge)}
       <div style={{ flex: 1 }} />
       <button
         className={`activity-item ${agentOpen ? "active" : ""}`}
@@ -68,11 +69,22 @@ function Icon({ name }: { name: keyof typeof icons }) {
   );
 }
 
-export function StatusBar({ left, right }: { left: string[]; right: string[] }) {
+type Toggle = { label: string; title: string; on: boolean; fn: () => void };
+
+export function StatusBar({ left, right, toggles }: { left: string[]; right: string[]; toggles: Toggle[] }) {
   return (
     <div className="statusbar">
       <div>{left.map((s) => <span key={s}>{s}</span>)}</div>
-      <div>{right.map((s) => <span key={s}>{s}</span>)}</div>
+      <div>
+        {right.map((s) => <span key={s}>{s}</span>)}
+        <span className="status-toggles">
+          {toggles.map((t) => (
+            <button key={t.label} className={`status-toggle ${t.on ? "on" : ""}`} title={t.title} onClick={t.fn}>
+              {t.label}
+            </button>
+          ))}
+        </span>
+      </div>
     </div>
   );
 }

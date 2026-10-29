@@ -1,4 +1,6 @@
 mod fs;
+mod git;
+mod menu;
 mod pty;
 mod search;
 
@@ -8,6 +10,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
+        .setup(|app| {
+            app.set_menu(menu::build(app.handle())?)?;
+            menu::forward_events(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             fs::initial_dir,
             fs::read_dir,
@@ -19,6 +26,18 @@ pub fn run() {
             pty::pty_kill,
             search::list_files,
             search::search,
+            git::git_status,
+            git::git_file_versions,
+            git::git_stage,
+            git::git_unstage,
+            git::git_discard,
+            git::git_commit,
+            git::git_branches,
+            git::git_switch,
+            git::git_init,
+            git::git_sync,
+            git::git_log,
+            git::git_commit_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

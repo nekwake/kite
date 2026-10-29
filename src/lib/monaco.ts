@@ -1,5 +1,6 @@
 import * as monaco from "monaco-editor";
 import { loader } from "@monaco-editor/react";
+import { DEFAULT_ACCENT, defineMonacoTheme } from "./theme";
 import editorWorker from "monaco-editor/editor/editor.worker?worker";
 import jsonWorker from "monaco-editor/language/json/json.worker?worker";
 import cssWorker from "monaco-editor/language/css/css.worker?worker";
@@ -30,21 +31,7 @@ for (const defaults of [monaco.typescript.typescriptDefaults, monaco.typescript.
   });
 }
 
-monaco.editor.defineTheme("kite-dark", {
-  base: "vs-dark",
-  inherit: true,
-  rules: [],
-  colors: {
-    "editor.background": "#181818",
-    "editorGutter.background": "#181818",
-    "editor.lineHighlightBackground": "#ffffff08",
-    "editorLineNumber.foreground": "#5a5a5a",
-    "editorLineNumber.activeForeground": "#c8c8c8",
-    "editorIndentGuide.background1": "#ffffff10",
-    "editorWidget.background": "#202020",
-    "editorWidget.border": "#2e2e2e",
-  },
-});
+defineMonacoTheme(DEFAULT_ACCENT);
 
 const EXT_LANG: Record<string, string> = {
   ts: "typescript", tsx: "typescript", mts: "typescript", cts: "typescript",

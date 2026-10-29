@@ -5,9 +5,10 @@ type Props = {
   root: string;
   activePath: string | null;
   onOpenFile: (path: string) => void;
+  decorations: { files: Map<string, string>; dirs: Set<string> };
 };
 
-export function FileTree({ root, activePath, onOpenFile }: Props) {
+export function FileTree({ root, activePath, onOpenFile, decorations }: Props) {
   const [children, setChildren] = useState<Record<string, Entry[]>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set([root]));
 
@@ -45,6 +46,8 @@ export function FileTree({ root, activePath, onOpenFile }: Props) {
   const renderDir = (dir: string, depth: number): React.ReactNode =>
     (children[dir] ?? []).map((entry) => {
       const isOpen = expanded.has(entry.path);
+      const status = entry.isDir ? undefined : decorations.files.get(entry.path);
+      const changed = status ?? (entry.isDir && decorations.dirs.has(entry.path) ? "dir" : undefined);
       return (
         <div key={entry.path}>
           <div
@@ -54,7 +57,10 @@ export function FileTree({ root, activePath, onOpenFile }: Props) {
             title={entry.path}
           >
             <span className="tree-chevron">{entry.isDir ? (isOpen ? "▾" : "▸") : ""}</span>
-            <span className={entry.isDir ? "tree-dir" : "tree-file"}>{entry.name}</span>
+            <span className={`${entry.isDir ? "tree-dir" : "tree-file"} ${changed ? `git-${changed}` : ""}`}>
+              {entry.name}
+            </span>
+            {status && <span className={`tree-status change-status s-${status}`}>{status}</span>}
           </div>
           {entry.isDir && isOpen && renderDir(entry.path, depth + 1)}
         </div>
