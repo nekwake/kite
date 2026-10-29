@@ -58,6 +58,7 @@ export type Commit = {
   hash: string;
   parents: string[];
   author: string;
+  email: string;
   time: number;
   refs: string[];
   subject: string;
@@ -89,6 +90,8 @@ export const claude = {
   sessions: (root: string | null) => invoke<ClaudeSession[]>("claude_sessions", { root }),
 };
 
+export type CommitInfo = { body: string; files: number; insertions: number; deletions: number; webUrl: string | null };
+
 export const git = {
   status: (root: string) => invoke<GitStatus>("git_status", { root }),
   fileVersions: (root: string, path: string, staged: boolean, rev?: string) =>
@@ -106,4 +109,6 @@ export const git = {
   sync: (root: string, op: "pull" | "push" | "fetch" | "publish") => invoke<string>("git_sync", { root, op }),
   log: (root: string, limit = 300) => invoke<Commit[]>("git_log", { root, limit }),
   commitFiles: (root: string, hash: string) => invoke<FileChange[]>("git_commit_files", { root, hash }),
+  commitInfo: (root: string, hash: string) => invoke<CommitInfo>("git_commit_info", { root, hash }),
+  userName: (root: string) => invoke<string | null>("git_user_name", { root }),
 };

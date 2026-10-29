@@ -71,6 +71,8 @@ pub fn run() {
             git::git_sync,
             git::git_log,
             git::git_commit_files,
+            git::git_commit_info,
+            git::git_user_name,
             claude::claude_sessions,
             accounts::github_account,
             accounts::claude_account,

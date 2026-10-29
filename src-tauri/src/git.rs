@@ -271,6 +271,7 @@ pub struct Commit {
     hash: String,
     parents: Vec<String>,
     author: String,
+    email: String,
     time: i64,
     refs: Vec<String>,
     subject: String,
@@ -281,26 +282,84 @@ pub async fn git_log(root: String, limit: u32) -> Result<Vec<Commit>, String> {
     let top = toplevel(&root)?;
     let n = format!("-n{limit}");
     // An empty repository has no log yet
-    let Ok(out) = git_str(&top, &["log", "--all", "--date-order", &n, "--format=%H%x1f%P%x1f%an%x1f%at%x1f%D%x1f%s%x1e"]) else {
+    let Ok(out) = git_str(&top, &["log", "--all", "--date-order", &n, "--format=%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%D%x1f%s%x1e"]) else {
         return Ok(vec![]);
     };
     Ok(out
         .split('\x1e')
         .filter_map(|rec| {
             let f: Vec<&str> = rec.trim_start_matches('\n').split('\x1f').collect();
-            if f.len() < 6 {
+            if f.len() < 7 {
                 return None;
             }
             Some(Commit {
                 hash: f[0].to_string(),
                 parents: f[1].split_whitespace().map(String::from).collect(),
                 author: f[2].to_string(),
-                time: f[3].parse().unwrap_or(0),
-                refs: f[4].split(", ").filter(|r| !r.is_empty()).map(String::from).collect(),
-                subject: f[5].to_string(),
+                email: f[3].to_string(),
+                time: f[4].parse().unwrap_or(0),
+                refs: f[5].split(", ").filter(|r| !r.is_empty()).map(String::from).collect(),
+                subject: f[6].to_string(),
             })
         })
         .collect())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitInfo {
+    /// Full message after the subject line
+    body: String,
+    files: u32,
+    insertions: u32,
+    deletions: u32,
+    /// The commit on GitHub/GitLab/Bitbucket when origin points there
+    web_url: Option<String>,
+}
+
+/// "git@github.com:o/r.git" or "https://github.com/o/r.git" → "https://github.com/o/r"
+fn web_base(remote: &str) -> Option<String> {
+    let r = remote.trim().trim_end_matches(".git");
+    let https = if let Some(rest) = r.strip_prefix("git@") {
+        format!("https://{}", rest.replacen(':', "/", 1))
+    } else if let Some((_, rest)) = r.split_once("://") {
+        // Drop credentials ("user:token@host") from the host part
+        let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+        let host = host.rsplit_once('@').map_or(host, |(_, h)| h);
+        format!("https://{host}/{path}")
+    } else {
+        return None;
+    };
+    Some(https)
+}
+
+#[tauri::command]
+pub async fn git_commit_info(root: String, hash: String) -> Result<CommitInfo, String> {
+    let top = toplevel(&root)?;
+    let body = git_str(&top, &["show", "-s", "--format=%b", &hash])?.trim().to_string();
+    // " 5 files changed, 129 insertions(+), 738 deletions(-)"
+    let stat = git_str(&top, &["show", "--shortstat", "--format=", "--first-parent", &hash]).unwrap_or_default();
+    let num = |word: &str| {
+        stat.split(',')
+            .find(|p| p.contains(word))
+            .and_then(|p| p.split_whitespace().next()?.parse().ok())
+            .unwrap_or(0)
+    };
+    let web_url = git_str(&top, &["remote", "get-url", "origin"])
+        .ok()
+        .and_then(|r| web_base(&r))
+        .map(|base| {
+            let sep = if base.contains("bitbucket.org") { "commits" } else { "commit" };
+            format!("{base}/{sep}/{hash}")
+        });
+    Ok(CommitInfo { body, files: num("file"), insertions: num("insertion"), deletions: num("deletion"), web_url })
+}
+
+/// `git config user.name`, to tell your commits from other people's
+#[tauri::command]
+pub async fn git_user_name(root: String) -> Option<String> {
+    let top = toplevel(&root).ok()?;
+    git_str(&top, &["config", "user.name"]).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
 #[tauri::command]
@@ -344,6 +403,14 @@ mod tests {
         ];
         assert_eq!(got, want.map(|(a, b, c)| (a.to_string(), b.to_string(), c)));
         assert_eq!(s.changes[0].path, "/r/a.txt");
+    }
+
+    #[test]
+    fn builds_web_links() {
+        assert_eq!(web_base("git@github.com:nekwake/kite.git").as_deref(), Some("https://github.com/nekwake/kite"));
+        assert_eq!(web_base("https://github.com/nekwake/kite.git\n").as_deref(), Some("https://github.com/nekwake/kite"));
+        assert_eq!(web_base("https://user:tok@github.com/o/r.git").as_deref(), Some("https://github.com/o/r"));
+        assert_eq!(web_base("/local/path"), None);
     }
 
     #[test]

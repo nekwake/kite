@@ -1,5 +1,15 @@
 // English UI strings, keyed by the Turkish source text. Missing keys fall back to Turkish.
 export const EN: Record<string, string> = {
+  "dosya değişti": "files changed",
+  "ekleme": "insertions",
+  "silme": "deletions",
+  "Hash'i kopyala": "Copy hash",
+  "GitHub'da aç": "Open on GitHub",
+  "Web'de aç": "Open on the web",
+  "az önce": "just now",
+  "dk önce": "min ago",
+  "sa önce": "h ago",
+  "gün önce": "days ago",
   "Kaydederken biçimlendir": "Format on save",
   "Prettier ile (⌥⇧F). Projede .prettierrc varsa onu kullanır": "With Prettier (⌥⇧F). Uses the project's .prettierrc when present",
   "Dosyayı biçimlendir (Prettier)": "Format document (Prettier)",

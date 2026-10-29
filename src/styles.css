@@ -1485,18 +1485,61 @@ body.dragging-tab, body.dragging-tab * { cursor: grabbing !important; user-selec
 .win-controls button:hover { background: #ffffff14; color: var(--fg); }
 .win-controls .win-close:hover { background: #e81123; color: #fff; }
 .titlebar-win .update-btn { right: 150px; }
-.author-badge {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #141414;
-  font-size: 8.5px;
-  font-weight: 700;
-}
 .usage-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-dim); font-variant-numeric: tabular-nums; cursor: default; }
 .usage-badge svg { color: var(--accent); }
 .usage-mid { color: #e5a50a; }
 .usage-high { color: #f14c4c; }
+
+/* Git history: expanded files and the commit hover card */
+.history-by { flex-shrink: 0; color: var(--fg-faint); font-size: 11.5px; }
+.history-inline-files { position: relative; }
+.history-lanes { position: absolute; left: 0; top: 0; pointer-events: none; }
+.history-file {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.history-file:hover { background: var(--bg-hover); }
+.history-file-name { flex-shrink: 0; color: var(--fg); }
+.history-file-name.deleted { text-decoration: line-through; color: var(--fg-dim); }
+.history-file-dir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--fg-faint); font-size: 11.5px; }
+.history-file .change-status { margin-left: auto; }
+.history-detail .history-file { padding-left: 14px; }
+
+.commit-card {
+  position: fixed;
+  z-index: 150;
+  width: min(460px, calc(100vw - 16px));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  background: #202020;
+  border: 1px solid #383838;
+  border-radius: 8px;
+  box-shadow: 0 14px 40px #000a;
+  font-size: 12.5px;
+  user-select: text;
+}
+.commit-card > div { padding: 0 14px; }
+.commit-card-head { display: flex; align-items: center; gap: 8px; padding-top: 12px !important; flex-wrap: wrap; }
+.commit-card-head b { color: var(--accent); }
+.commit-card-time { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-dim); }
+.commit-avatar { width: 22px; height: 22px; border-radius: 4px; flex-shrink: 0; }
+.commit-avatar.initial { display: grid; place-items: center; background: #333; color: var(--fg); font-weight: 600; font-size: 11px; }
+.commit-card-subject { margin-top: 8px; font-size: 13px; color: var(--fg); }
+.commit-card-body { margin-top: 6px; color: var(--fg); line-height: 1.55; }
+.commit-card-body p { margin: 0 0 6px; }
+.commit-card-body ul { margin: 0 0 6px; padding-left: 18px; }
+.commit-card-body li { margin-bottom: 3px; }
+.commit-card-refs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.commit-card-stats { margin-top: 10px; padding-top: 8px !important; padding-bottom: 8px !important; border-top: 1px solid #333; color: var(--fg-dim); }
+.stat-add { color: #73c991; }
+.stat-del { color: #f14c4c; }
+.commit-card-foot { display: flex; align-items: center; gap: 8px; padding-top: 8px !important; padding-bottom: 10px !important; border-top: 1px solid #333; }
+.commit-card-hash { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font: 12px "SF Mono", Menlo, monospace; }
+.commit-card-hash button { border: none; background: none; color: var(--fg-dim); cursor: pointer; padding: 0; display: grid; }
+.commit-card-sep { color: var(--fg-faint); }
+.commit-card .link-btn { padding: 0; }
