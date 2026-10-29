@@ -2,6 +2,11 @@
 
 Her sürüm için kısa notlar.
 
+## 0.4.2
+
+- Sürüm numarası Ayarlar › Hakkında'da ve giriş ekranında
+- "Güncellemeleri denetle" düğmesi ve komutu
+
 ## 0.4.1
 
 - Sağ altta bildirim zili: Claude ve terminal bildirimleri, hatalar, yeni sürüm haberleri; rahatsız etme seçeneği
