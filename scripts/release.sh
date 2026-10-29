@@ -5,7 +5,6 @@ set -e
 cd "$(dirname "$0")/.."
 v="$1"
 [ -n "$v" ] || { echo "kullanım: npm run release -- <sürüm>  (ör. 0.2.0)" >&2; exit 1; }
-grep -q "^## $v\$" CHANGELOG.md || { echo "Önce CHANGELOG.md'ye '## $v' başlıklı notları ekle." >&2; exit 1; }
 node -e '
   const fs = require("fs"), v = process.argv[1];
   for (const f of ["package.json", "src-tauri/tauri.conf.json"]) {

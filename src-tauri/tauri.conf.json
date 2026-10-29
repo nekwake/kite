@@ -43,7 +43,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ5NzFGRjQ1NzlEQjBEOUQKUldTZERkdDVSZjl4U1RUUFVxbXQ5ZEMrSGNVNUd5MENDM0poeXRubkVLSlFFOVU1VkduQkpPcy8K",
       "endpoints": [
-        "https://github.com/nekwake/kite-releases/releases/latest/download/latest.json"
+        "https://github.com/nekwake/kite/releases/latest/download/latest.json"
       ]
     }
   }

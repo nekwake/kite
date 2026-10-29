@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nekwake/kite-releases/releases/latest"><b>⬇ macOS için indir (.dmg)</b></a>
+  <a href="https://github.com/nekwake/kite/releases/latest"><b>⬇ macOS için indir (.dmg)</b></a>
   ·
-  <a href="https://github.com/nekwake/kite-releases/releases">Tüm sürümler</a>
+  <a href="https://github.com/nekwake/kite/releases">Tüm sürümler</a>
 </p>
 
 ---
@@ -27,7 +27,7 @@
 
 ## Kurulum
 
-1. [Son sürümden](https://github.com/nekwake/kite-releases/releases/latest) `.dmg` dosyasını indir, Kite'ı **Uygulamalar** klasörüne sürükle.
+1. [Son sürümden](https://github.com/nekwake/kite/releases/latest) `.dmg` dosyasını indir, Kite'ı **Uygulamalar** klasörüne sürükle.
 2. Kite henüz Apple tarafından imzalı değil. İlk açılışta macOS uyarı verirse:
    ```bash
    xattr -dr com.apple.quarantine /Applications/Kite.app
@@ -55,11 +55,6 @@ npm run release -- 0.2.0     # sürümü yükseltir, commit + v0.2.0 etiketi
 git push && git push origin v0.2.0
 ```
 
-Etiket gidince GitHub Actions ([release.yml](.github/workflows/release.yml)) universal `.dmg`'yi ve imzalı güncelleme paketini derleyip herkese açık [kite-releases](https://github.com/nekwake/kite-releases) deposuna koyar. Kaynak kod gizli kalabilir. Kurulu Kite'lar `latest.json` üzerinden yeni sürümü görür.
+Etiket gidince GitHub Actions ([release.yml](.github/workflows/release.yml)) universal `.dmg`'yi ve imzalı güncelleme paketini derleyip Releases sayfasına koyar. Kurulu Kite'lar `latest.json` üzerinden yeni sürümü görür.
 
-Gerekli secret'lar (bu depoda, Settings › Secrets › Actions):
-
-| Secret | Değer |
-|---|---|
-| `TAURI_SIGNING_PRIVATE_KEY` | `~/.tauri/kite.key` dosyasının içeriği |
-| `RELEASES_TOKEN` | kite-releases için "Contents: read and write" yetkili fine-grained token |
+Gerekli secret (Settings › Secrets › Actions): `TAURI_SIGNING_PRIVATE_KEY`, yani `~/.tauri/kite.key` dosyasının içeriği.

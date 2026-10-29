@@ -1,7 +1,6 @@
-# Publishes a release when a version tag (v1.2.3) is pushed: a universal macOS
-# .dmg for downloads, plus the signed update bundle and latest.json that running
-# copies of Kite check. The source repo can stay private: releases go to the
-# public nekwake/kite-releases repo.
+# Publishes a GitHub Release when a version tag (v1.2.3) is pushed: a universal
+# macOS .dmg for downloads, plus the signed update bundle and latest.json that
+# running copies of Kite check for updates.
 name: Release
 
 on:
@@ -35,14 +34,11 @@ jobs:
 
       - uses: tauri-apps/tauri-action@v0
         env:
-          # Fine-grained token with "Contents: read and write" on nekwake/kite-releases
-          GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the update bundle; generated with `npx tauri signer generate`
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          owner: nekwake
-          repo: kite-releases
           tagName: ${{ github.ref_name }}
           releaseName: Kite ${{ github.ref_name }}
           releaseBody: "Aşağıdaki .dmg dosyasını indir (Apple Silicon ve Intel). Kurulu Kite bu sürümü kendisi önerir."

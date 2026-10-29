@@ -15,7 +15,6 @@ export const EN: Record<string, string> = {
   "Projen hakkında soru sor. Model dosyaları okuyup arama yapabilir.": "Ask about your project. The model can read files and search.",
   "Sadece ücretsiz": "Free only",
   "Sohbeti temizle": "Clear chat",
-  "YENİLİKLER": "WHAT'S NEW",
   "arandı": "searched",
   "araçsız": "no tools",
   "git değişiklikleri okundu": "read git changes",
