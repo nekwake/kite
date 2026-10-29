@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
+import { shortcutText } from "../lib/platform";
 import { Icon } from "../lib/icons";
 import { ClaudeAccount, GithubAccount } from "../lib/api";
 import { ACCENT_PRESETS, applyAccent, currentAccent } from "../lib/theme";
@@ -239,7 +240,7 @@ export function Settings(props: Props) {
       {SHORTCUTS.filter(([l]) => !q || l.toLocaleLowerCase("tr").includes(q)).map(([label, keys]) => (
         <div key={label} className="set-shortcut">
           <span>{t(label)}</span>
-          <kbd>{keys}</kbd>
+          <kbd>{shortcutText(keys)}</kbd>
         </div>
       ))}
     </div>

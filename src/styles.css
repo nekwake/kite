@@ -1468,3 +1468,19 @@ body.dragging-tab, body.dragging-tab * { cursor: grabbing !important; user-selec
 .model-meta { display: flex; gap: 6px; color: var(--fg-faint); font-size: 11px; flex-shrink: 0; }
 .key-input { display: flex; gap: 6px; }
 .key-input .search-input { width: 220px; height: 28px; padding: 0 8px; }
+
+/* Windows title bar: Kite's own minimize / maximize / close buttons */
+.win-controls { position: absolute; right: 0; top: 0; height: 100%; display: flex; }
+.win-controls button {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  color: var(--fg-dim);
+  cursor: default;
+}
+.win-controls button:hover { background: #ffffff14; color: var(--fg); }
+.win-controls .win-close:hover { background: #e81123; color: #fff; }
+.titlebar-win .update-btn { right: 150px; }

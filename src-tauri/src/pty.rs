@@ -66,10 +66,10 @@ pub fn pty_spawn(
         .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
         .map_err(err)?;
 
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    // A login shell on macOS so PATH from ~/.zprofile is loaded even when launched from Finder
+    let (shell, args) = crate::platform::default_shell();
     let mut cmd = CommandBuilder::new(&shell);
-    // Login shell so PATH from ~/.zprofile is loaded even when launched from Finder
-    cmd.arg("-l");
+    cmd.args(&args);
     cmd.cwd(&cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");

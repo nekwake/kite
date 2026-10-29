@@ -1,4 +1,6 @@
 // Small layout pieces: title bar, activity bar, status bar, resizer
+import { isWindows } from "../lib/platform";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { t } from "../lib/i18n";
 
 import { ReactNode, useRef } from "react";
@@ -9,7 +11,8 @@ export type UpdateInfo = { version: string; progress: number | null; onInstall: 
 
 export function TitleBar({ label, onSearch, update }: { label: string; onSearch?: () => void; update?: UpdateInfo | null }) {
   return (
-    <div className="titlebar" data-tauri-drag-region>
+    <div className={`titlebar ${isWindows ? "titlebar-win" : ""}`} data-tauri-drag-region>
+      {isWindows && <WindowControls />}
       {update && (
         <button
           className="update-btn"
@@ -147,5 +150,23 @@ export function Resizer({ dir, onDrag }: { dir: "x" | "y"; onDrag: (delta: numbe
         document.body.classList.remove(`resizing-${dir}`);
       }}
     />
+  );
+}
+
+/** Windows draws no title bar for Kite (decorations: false), so Kite draws the buttons */
+function WindowControls() {
+  const win = () => getCurrentWindow();
+  return (
+    <div className="win-controls">
+      <button title={t("Küçült")} onClick={() => win().minimize()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" /></svg>
+      </button>
+      <button title={t("Büyüt")} onClick={() => win().toggleMaximize()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" /></svg>
+      </button>
+      <button className="win-close" title={t("Kapat")} onClick={() => win().close()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" /></svg>
+      </button>
+    </div>
   );
 }

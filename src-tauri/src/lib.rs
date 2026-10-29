@@ -3,6 +3,7 @@ mod claude;
 mod fs;
 mod git;
 mod menu;
+mod platform;
 mod pty;
 mod search;
 mod secrets;
@@ -32,8 +33,12 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            app.set_menu(menu::build(app.handle(), "tr")?)?;
-            menu::forward_events(app.handle());
+            // Windows uses Kite's own title bar and keyboard shortcuts instead of a menu bar
+            #[cfg(target_os = "macos")]
+            {
+                app.set_menu(menu::build(app.handle(), "tr")?)?;
+                menu::forward_events(app.handle());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

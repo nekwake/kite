@@ -39,7 +39,7 @@ pub fn watch_root(app: AppHandle, window: WebviewWindow, state: State<WatchState
             let mut paths = BTreeSet::new();
             let mut add = |ev: notify::Result<notify::Event>| {
                 if let Ok(ev) = ev {
-                    paths.extend(ev.paths.into_iter().map(|p| p.to_string_lossy().into_owned()));
+                    paths.extend(ev.paths.iter().map(|p| crate::platform::path_str(p)));
                 }
             };
             add(first);

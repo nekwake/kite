@@ -25,7 +25,7 @@ pub async fn read_dir(path: String) -> Result<Vec<Entry>, String> {
             let path = e.path();
             Some(Entry {
                 is_dir: path.is_dir(),
-                path: path.to_string_lossy().into_owned(),
+                path: crate::platform::path_str(&path),
                 name,
             })
         })
@@ -60,8 +60,8 @@ pub async fn write_file(path: String, contents: String) -> Result<(), String> {
 pub fn initial_dir() -> Option<String> {
     // `open -a Kite --args <dir>` or `kite <dir>` passes the folder as the first argument
     let arg = std::env::args().nth(1)?;
-    let path = std::fs::canonicalize(arg).ok()?;
-    path.is_dir().then(|| path.to_string_lossy().into_owned())
+    let path = crate::platform::canonicalize(arg).ok()?;
+    path.is_dir().then(|| crate::platform::path_str(&path))
 }
 
 #[tauri::command]
@@ -101,9 +101,5 @@ pub async fn trash_path(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn reveal_in_finder(path: String) -> Result<(), String> {
-    std::process::Command::new("open")
-        .args(["-R", &path])
-        .status()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    crate::platform::reveal(&path).map_err(|e| e.to_string())
 }

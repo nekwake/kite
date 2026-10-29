@@ -3,7 +3,7 @@
 
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
-use tauri::{AppHandle, TitleBarStyle, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
 
 static WINDOWS: AtomicU32 = AtomicU32::new(1);
 
@@ -23,12 +23,16 @@ pub async fn open_window(app: AppHandle, dir: Option<String>) -> Result<(), Stri
         Some(d) => format!("dir={}", encode(&d)),
         None => "blank=1".into(),
     };
-    WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(format!("index.html?{query}").into()))
+    let builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(format!("index.html?{query}").into()))
         .title("Kite")
         .inner_size(1400.0, 900.0)
-        .min_inner_size(800.0, 500.0)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .hidden_title(true)
+        .min_inner_size(800.0, 500.0);
+    // macOS keeps its traffic lights over our title bar; Windows draws its own buttons in it
+    #[cfg(target_os = "macos")]
+    let builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.decorations(false);
+    builder
         .build()
         .map(|_| ())
         .map_err(|e| e.to_string())
@@ -38,9 +42,9 @@ pub async fn open_window(app: AppHandle, dir: Option<String>) -> Result<(), Stri
 pub fn on_second_instance(app: &AppHandle, argv: Vec<String>, cwd: String) {
     let dir = argv
         .get(1)
-        .and_then(|a| std::fs::canonicalize(Path::new(&cwd).join(a)).ok())
+        .and_then(|a| crate::platform::canonicalize(Path::new(&cwd).join(a)).ok())
         .filter(|p| p.is_dir())
-        .map(|p| p.to_string_lossy().into_owned());
+        .map(|p| crate::platform::path_str(&p));
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let _ = open_window(app, dir).await;

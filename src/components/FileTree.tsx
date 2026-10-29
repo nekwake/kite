@@ -6,6 +6,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { api, basename, dirname, Entry, relativeTo } from "../lib/api";
 import { startPathDrag } from "../lib/drag";
 import { FileIcon } from "../lib/fileIcons";
+import { hasMod, revealLabel } from "../lib/platform";
 import { MenuItem } from "./ContextMenu";
 
 type Props = {
@@ -144,7 +145,7 @@ export function FileTree(props: Props) {
       "separator",
       { label: "Claude oturumuna ekle", onClick: () => props.onSendToClaude([entry.path]) },
       { label: "Terminalde aç", onClick: () => props.onOpenTerminal(dir) },
-      { label: "Finder'da göster", onClick: () => api.revealInFinder(entry.path) },
+      { label: revealLabel, onClick: () => api.revealInFinder(entry.path) },
       "separator",
       { label: "Yolu kopyala", onClick: () => copy(entry.path) },
       { label: "Göreli yolu kopyala", onClick: () => copy(relativeTo(root, entry.path)) },
@@ -159,7 +160,7 @@ export function FileTree(props: Props) {
     { label: "Yeni Klasör…", onClick: () => startCreate("folder", root) },
     "separator",
     { label: "Terminalde aç", onClick: () => props.onOpenTerminal(root) },
-    { label: "Finder'da göster", onClick: () => api.revealInFinder(root) },
+    { label: revealLabel, onClick: () => api.revealInFinder(root) },
     { label: "Yolu kopyala", onClick: () => copy(root) },
   ];
 
@@ -172,7 +173,7 @@ export function FileTree(props: Props) {
     if (e.key === "Enter") {
       e.preventDefault();
       setEditing({ kind: "rename", path: entry.path });
-    } else if (e.key === "Backspace" && e.metaKey) {
+    } else if ((e.key === "Backspace" || e.key === "Delete") && hasMod(e)) {
       e.preventDefault();
       remove(entry);
     }

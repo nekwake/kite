@@ -3,7 +3,6 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use std::process::Command;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,27 +23,37 @@ pub struct ClaudeAccount {
     plan: Option<String>,
 }
 
-/// Finder-launched apps get a minimal PATH; look where Homebrew and installers put CLIs
+/// Finder-launched apps get a minimal PATH; also look where Homebrew, npm and
+/// installers put CLIs. On Windows, `.exe` and `.cmd` shims count too.
 pub fn find_cli(name: &str) -> Option<String> {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let dirs = [
-        format!("{home}/.local/bin"),
-        "/opt/homebrew/bin".into(),
-        "/usr/local/bin".into(),
-        "/usr/bin".into(),
-        format!("{home}/.claude/local"),
-    ];
+    let home = crate::platform::home_dir().unwrap_or_default();
+    let home = home.to_string_lossy();
+    let extra: Vec<String> = if cfg!(windows) {
+        let appdata = std::env::var("APPDATA").unwrap_or_default();
+        vec![format!("{appdata}\\npm"), format!("{home}\\.local\\bin")]
+    } else {
+        vec![
+            format!("{home}/.local/bin"),
+            "/opt/homebrew/bin".into(),
+            "/usr/local/bin".into(),
+            "/usr/bin".into(),
+            format!("{home}/.claude/local"),
+        ]
+    };
+    let sep = if cfg!(windows) { ';' } else { ':' };
+    let exts: &[&str] = if cfg!(windows) { &[".exe", ".cmd", ""] } else { &[""] };
     std::env::var("PATH")
         .unwrap_or_default()
-        .split(':')
+        .split(sep)
         .map(String::from)
-        .chain(dirs)
-        .map(|d| format!("{d}/{name}"))
-        .find(|p| std::path::Path::new(p).is_file())
+        .chain(extra)
+        .flat_map(|d| exts.iter().map(move |e| std::path::Path::new(&d).join(format!("{name}{e}"))))
+        .find(|p| p.is_file())
+        .map(|p| p.to_string_lossy().into_owned())
 }
 
 fn run(bin: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new(bin).args(args).env("GH_PROMPT_DISABLED", "1").output().ok()?;
+    let out = crate::platform::command(bin).args(args).env("GH_PROMPT_DISABLED", "1").output().ok()?;
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
@@ -63,9 +72,8 @@ pub async fn claude_account() -> ClaudeAccount {
     let bin = find_cli("claude");
     let version = bin.as_deref().and_then(|b| run(b, &["--version"])).map(|v| v.replace(" (Claude Code)", ""));
     // Claude Code keeps the signed-in account's profile (not its token) in ~/.claude.json
-    let account: Option<Value> = std::env::var("HOME")
-        .ok()
-        .and_then(|h| std::fs::read_to_string(format!("{h}/.claude.json")).ok())
+    let account: Option<Value> = crate::platform::home_dir()
+        .and_then(|h| std::fs::read_to_string(h.join(".claude.json")).ok())
         .and_then(|s| serde_json::from_str::<Value>(&s).ok())
         .and_then(|v| v.get("oauthAccount").cloned());
     let field = |k: &str| account.as_ref().and_then(|a| a.get(k)).and_then(Value::as_str).map(String::from);
@@ -83,7 +91,7 @@ pub async fn claude_account() -> ClaudeAccount {
 pub async fn github_publish(root: String, name: String, private: bool) -> Result<String, String> {
     let gh = find_cli("gh").ok_or("GitHub CLI (gh) bulunamadı")?;
     let visibility = if private { "--private" } else { "--public" };
-    let out = Command::new(gh)
+    let out = crate::platform::command(gh)
         .current_dir(&root)
         .args(["repo", "create", &name, visibility, "--source=.", "--remote=origin", "--push"])
         .env("GH_PROMPT_DISABLED", "1")

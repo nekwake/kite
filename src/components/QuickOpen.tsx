@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { shortcutText } from "../lib/platform";
 import { t } from "../lib/i18n";
 import { api } from "../lib/api";
 import { fuzzyFilter, fuzzyMatch } from "../lib/fuzzy";
@@ -120,7 +121,7 @@ export function QuickOpen({ root, recent, commands, initialQuery, onOpen, onGoto
                   <span className="palette-name">
                     <Highlight text={r.cmd.label} positions={r.positions} from={0} to={r.cmd.label.length} />
                   </span>
-                  {r.cmd.shortcut && <kbd className="palette-kbd">{r.cmd.shortcut}</kbd>}
+                  {r.cmd.shortcut && <kbd className="palette-kbd">{shortcutText(r.cmd.shortcut)}</kbd>}
                 </>
               )}
               {r.kind === "line" && <span className="palette-name">{t("Satıra git")}: {r.line}</span>}

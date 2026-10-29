@@ -3,10 +3,9 @@
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
-    let out = Command::new("git")
+    let out = crate::platform::command("git")
         .current_dir(dir)
         .args(args)
         // Never block on a credential prompt; don't take index locks for reads
@@ -29,20 +28,21 @@ fn git_str(dir: &Path, args: &[&str]) -> Result<String, String> {
 /// Repository top level for `root`, canonicalized so paths can be compared.
 fn toplevel(root: &str) -> Result<PathBuf, String> {
     let top = git_str(Path::new(root), &["rev-parse", "--show-toplevel"])?;
-    std::fs::canonicalize(top.trim()).map_err(|e| e.to_string())
+    crate::platform::canonicalize(top.trim()).map_err(|e| e.to_string())
 }
 
 /// Absolute path from the UI -> repo-relative path for git.
 fn rel(top: &Path, path: &str) -> String {
-    let p = std::fs::canonicalize(path).unwrap_or_else(|_| {
+    let p = crate::platform::canonicalize(path).unwrap_or_else(|_| {
         // Deleted files can't be canonicalized; canonicalize their parent instead
         let p = Path::new(path);
-        match (p.parent().and_then(|d| std::fs::canonicalize(d).ok()), p.file_name()) {
+        match (p.parent().and_then(|d| crate::platform::canonicalize(d).ok()), p.file_name()) {
             (Some(dir), Some(name)) => dir.join(name),
             _ => p.to_path_buf(),
         }
     });
-    p.strip_prefix(top).unwrap_or(&p).to_string_lossy().into_owned()
+    // git takes forward slashes on every platform
+    crate::platform::path_str(p.strip_prefix(top).unwrap_or(&p))
 }
 
 #[derive(Serialize)]
@@ -109,7 +109,7 @@ fn parse_status(out: &str, top: &Path) -> GitStatus {
         if x == 'R' || x == 'C' {
             fields.next(); // rename source
         }
-        let abs = top.join(path).to_string_lossy().into_owned();
+        let abs = crate::platform::path_str(&top.join(path));
         let push = |s: &mut GitStatus, status: char, staged: bool| {
             s.changes.push(FileChange { path: abs.clone(), rel: path.to_string(), status: status.to_string(), staged });
         };
@@ -316,7 +316,7 @@ pub async fn git_commit_files(root: String, hash: String) -> Result<Vec<FileChan
         }
         let Some(path) = fields.next() else { break };
         files.push(FileChange {
-            path: top.join(path).to_string_lossy().into_owned(),
+            path: crate::platform::path_str(&top.join(path)),
             rel: path.to_string(),
             status: letter.to_string(),
             staged: false,

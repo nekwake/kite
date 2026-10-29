@@ -5,6 +5,7 @@ import { ask, open, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { inTauri, listenHere } from "./lib/events";
 import { pruneTerminals } from "./lib/terminals";
+import { findModel, hasMod, isMac, isWindows, revealLabel, toSlash } from "./lib/platform";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { accounts, api, basename, ClaudeAccount, ClaudeSession, dirname, FileChange, git, GithubAccount, relativeTo } from "./lib/api";
@@ -150,7 +151,8 @@ export default function App() {
   // Bumped on every folder switch, even to the same folder, to start a fresh terminal
   const [rootSeq, setRootSeq] = useState(0);
 
-  const switchRoot = useCallback((dir: string) => {
+  const switchRoot = useCallback((raw: string) => {
+    const dir = toSlash(raw);
     monaco.editor.getModels().forEach((m) => m.dispose());
     setTabs([]);
     setActiveMain(null);
@@ -189,7 +191,7 @@ export default function App() {
 
   const openFolder = useCallback(async () => {
     const dir = await open({ directory: true, multiple: false });
-    if (typeof dir === "string") switchRoot(dir);
+    if (typeof dir === "string") switchRoot(toSlash(dir));
   }, [switchRoot]);
 
   const activeTab = tabs.find((t) => t.id === activeId);
@@ -270,7 +272,7 @@ export default function App() {
         const tab: FileTab = { kind: "file", id: path, path, content, saved: content, preview };
         const old = preview ? ts.find((t) => t.kind === "file" && t.preview && !isDirty(t) && groupOf(t) === "main") : undefined;
         if (!old) return [...ts, tab];
-        if (old.kind === "file") monaco.editor.getModels().find((m) => m.uri.path === old.path)?.dispose();
+        if (old.kind === "file") findModel(old.path)?.dispose();
         return ts.map((t) => (t === old ? tab : t));
       });
       setActiveId(path, "main");
@@ -353,7 +355,7 @@ export default function App() {
       if (!tab || isDirty(tab)) continue;
       const content = await api.readFile(p).catch(() => null);
       if (content === null) continue;
-      monaco.editor.getModels().find((m) => m.uri.path === p)?.setValue(content);
+      findModel(p)?.setValue(content);
       setTabs((ts) => ts.map((t) => (t.id === p ? { ...t, content, saved: content } : t)));
     }
   };
@@ -366,7 +368,7 @@ export default function App() {
         if (t.kind !== "file") return t;
         const np = moved(t.path);
         if (!np) return t;
-        monaco.editor.getModels().find((m) => m.uri.path === t.path)?.dispose();
+        findModel(t.path)?.dispose();
         return { ...t, id: np, path: np };
       }),
     );
@@ -379,7 +381,7 @@ export default function App() {
   const onDeleted = (path: string) => {
     const gone = (p: string) => p === path || p.startsWith(path + "/");
     tabs.filter((t) => t.kind === "file" && gone(t.path)).forEach((t) => {
-      if (t.kind === "file") monaco.editor.getModels().find((m) => m.uri.path === t.path)?.dispose();
+      if (t.kind === "file") findModel(t.path)?.dispose();
     });
     const rest = tabs.filter((t) => !(t.kind === "file" && gone(t.path)));
     setTabs(rest);
@@ -412,7 +414,7 @@ export default function App() {
     // Unsaved files stay open; everything else closes
     const toClose = closing.filter((t) => !isDirty(t)).map((t) => t.id);
     closing.forEach((t) => {
-      if (t.kind === "file" && toClose.includes(t.id)) monaco.editor.getModels().find((m) => m.uri.path === t.path)?.dispose();
+      if (t.kind === "file" && toClose.includes(t.id)) findModel(t.path)?.dispose();
     });
     const rest = tabs.filter((t) => !toClose.includes(t.id));
     setTabs(rest);
@@ -439,7 +441,7 @@ export default function App() {
         ? ([
             { label: "Yolu kopyala", onClick: () => navigator.clipboard.writeText(path) },
             { label: "Göreli yolu kopyala", onClick: () => navigator.clipboard.writeText(relativeTo(root ?? "", path)) },
-            { label: "Finder'da göster", onClick: () => api.revealInFinder(path) },
+            { label: revealLabel, onClick: () => api.revealInFinder(path) },
           ] as MenuItem[])
         : []),
       ...(tab.kind === "file"
@@ -469,7 +471,7 @@ export default function App() {
       });
       if (!ok) return;
     }
-    if (tab.kind === "file") monaco.editor.getModels().find((m) => m.uri.path === tab.path)?.dispose();
+    if (tab.kind === "file") findModel(tab.path)?.dispose();
     if (tab.kind === "chat") dropChat(tab.id);
     const g = groupOf(tab);
     const inGroup = tabs.filter((t) => groupOf(t) === g);
@@ -492,16 +494,17 @@ export default function App() {
       defaultPath: `${root ?? ""}/${basename(tab.path)}`,
     });
     if (!target) return;
+    const saveTo = toSlash(target);
     try {
-      await api.writeFile(target, tab.content);
+      await api.writeFile(saveTo, tab.content);
     } catch (e) {
       setError(`Kaydedilemedi: ${e}`);
       return;
     }
-    monaco.editor.getModels().find((m) => m.uri.path === tab.path)?.dispose();
-    const saved: FileTab = { kind: "file", id: target, path: target, content: tab.content, saved: tab.content, group: tab.group };
-    setTabs((ts) => [...ts.filter((t) => t.id !== target).map((t) => (t.id === tab.id ? saved : t))]);
-    setActiveId(target, groupOf(tab));
+    findModel(tab.path)?.dispose();
+    const saved: FileTab = { kind: "file", id: saveTo, path: saveTo, content: tab.content, saved: tab.content, group: tab.group };
+    setTabs((ts) => [...ts.filter((t) => t.id !== saveTo).map((t) => (t.id === tab.id ? saved : t))]);
+    setActiveId(saveTo, groupOf(tab));
     refreshGit();
   };
 
@@ -629,7 +632,9 @@ export default function App() {
     };
     // Capture phase so shortcuts win over Monaco and xterm
     const onKey = (e: KeyboardEvent) => {
-      if (!e.metaKey || e.altKey || e.ctrlKey) return;
+      if (!hasMod(e) || e.altKey || (isMac && e.ctrlKey)) return;
+      // On Windows, Ctrl+letter belongs to the shell inside a terminal unless Shift is held
+      if (!isMac && !e.shiftKey && (e.target as HTMLElement).closest?.(".xterm") && !"pj`".includes(e.key.toLowerCase())) return;
       const id = (e.shiftKey ? shiftKeys : keys)[e.key.toLowerCase()];
       if (!id) return;
       e.preventDefault();
@@ -674,7 +679,7 @@ export default function App() {
     { id: "settings", label: "Ayarlar", shortcut: "⌘,", run: () => setSettingsOpen(true) },
     ...(activeFile
       ? [
-          { id: "reveal", label: "Aktif dosyayı Finder'da göster", run: () => api.revealInFinder(activeFile.path) },
+          { id: "reveal", label: isWindows ? "Aktif dosyayı Gezgin'de göster" : "Aktif dosyayı Finder'da göster", run: () => api.revealInFinder(activeFile.path) },
           { id: "copy_path", label: "Aktif dosyanın yolunu kopyala", run: () => navigator.clipboard.writeText(activeFile.path) },
           { id: "send_claude", label: "Aktif dosyayı Claude oturumuna ekle", run: () => sendToClaude([activeFile.path]) },
         ]

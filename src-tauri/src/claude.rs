@@ -52,7 +52,7 @@ pub fn encode_project(path: &str) -> String {
 }
 
 fn projects_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude").join("projects"))
+    crate::platform::home_dir().map(|h| h.join(".claude").join("projects"))
 }
 
 fn one_line(s: &str, max: usize) -> String {
@@ -159,8 +159,8 @@ fn session_for(path: &Path, cache: &mut HashMap<PathBuf, Scan>) -> Option<Sessio
         .cwds
         .iter()
         .find(|c| encode_project(c) == folder)
-        .or(scan.cwds.last())?
-        .clone();
+        .or(scan.cwds.last())
+        .map(|c| crate::platform::norm(c.clone()))?;
     Some(Session {
         id: path.file_stem()?.to_string_lossy().into_owned(),
         title: scan.title.clone().or(scan.first_prompt.clone()).unwrap_or_else(|| "Adsız oturum".into()),

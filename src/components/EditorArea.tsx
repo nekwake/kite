@@ -10,6 +10,7 @@ import { FileIcon } from "../lib/fileIcons";
 import { basename, git } from "../lib/api";
 import { gutterDecorations, lineChanges } from "../lib/gitGutter";
 import { startDrag } from "../lib/drag";
+import { modelPath } from "../lib/platform";
 import { KiteMark } from "./KiteLogo";
 import { TerminalSlot } from "./TerminalPanel";
 
@@ -105,7 +106,7 @@ export function EditorArea(props: Props) {
   const content = activeFile?.content;
   useEffect(() => {
     const model = editorRef.current?.getModel();
-    if (!model || !base || base.path !== filePath || model.uri.path !== filePath) return;
+    if (!model || !base || base.path !== filePath || model.uri.path !== modelPath(filePath)) return;
     const t = setTimeout(() => {
       const decos = base.text === null ? [] : gutterDecorations(lineChanges(base.text, model.getValue()));
       gutterIds.current.set(filePath, model.deltaDecorations(gutterIds.current.get(filePath) ?? [], decos));
@@ -213,7 +214,7 @@ export function EditorArea(props: Props) {
         {active.kind === "file" && (
           <Editor
             theme="kite-dark"
-            path={active.path}
+            path={modelPath(active.path)}
             defaultValue={active.content}
             defaultLanguage={languageFor(active.path)}
             // Models are disposed when their tab closes, so undo history survives tab switches
@@ -224,7 +225,7 @@ export function EditorArea(props: Props) {
               setEditorTick((n) => n + 1);
               // A jump requested before the editor existed (first file opened from search)
               const r = revealRef.current;
-              if (r && r.path === editor.getModel()?.uri.path) applyReveal(editor, r);
+              if (r && modelPath(r.path) === editor.getModel()?.uri.path) applyReveal(editor, r);
               editor.onDidChangeCursorPosition((e) => onCursor(e.position.lineNumber, e.position.column));
             }}
             options={editorOptions}

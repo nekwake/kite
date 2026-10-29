@@ -22,10 +22,7 @@ fn walker(root: &str) -> WalkBuilder {
 }
 
 fn relative(root: &str, path: &Path) -> String {
-    path.strip_prefix(root)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .into_owned()
+    crate::platform::path_str(path.strip_prefix(root).unwrap_or(path))
 }
 
 #[tauri::command]
@@ -140,7 +137,7 @@ pub async fn search(root: String, query: String, options: SearchOptions) -> Resu
             );
             if !matches.is_empty() {
                 results.lock().unwrap().push(FileMatches {
-                    path: entry.path().to_string_lossy().into_owned(),
+                    path: crate::platform::path_str(entry.path()),
                     relative: relative(root, entry.path()),
                     matches,
                 });
