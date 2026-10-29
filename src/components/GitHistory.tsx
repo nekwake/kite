@@ -9,9 +9,13 @@ const LANE = 14;
 type Props = {
   root: string;
   onOpenDiff: (change: FileChange, rev: string) => void;
+  /** Sidebar variant: no author/date columns, files expand under the commit */
+  compact?: boolean;
+  /** Changes when the repo moves (commit, pull, checkout) to reload the log */
+  refreshKey?: string;
 };
 
-export function GitHistory({ root, onOpenDiff }: Props) {
+export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
   const [commits, setCommits] = useState<Commit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Commit | null>(null);
@@ -28,7 +32,7 @@ export function GitHistory({ root, onOpenDiff }: Props) {
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   useEffect(() => {
     if (!selected) return;
@@ -38,6 +42,48 @@ export function GitHistory({ root, onOpenDiff }: Props) {
 
   const rows = useMemo(() => computeGraph(commits ?? []), [commits]);
   const width = Math.max(1, ...rows.map((r) => Math.max(r.before.length, r.after.length, r.col + 1))) * LANE + 8;
+
+  const fileRows = (hash: string) =>
+    files === null ? (
+      <div className="history-files"><KiteLoader size={14} /></div>
+    ) : (
+      files.map((f) => (
+        <div key={f.path} className="tree-row change-row" onClick={() => onOpenDiff(f, hash)} title={f.rel}>
+          <span className="change-name">{f.rel.split("/").pop()}</span>
+          <span className="change-dir">{f.rel.split("/").slice(0, -1).join("/")}</span>
+          <span className={`change-status s-${f.status}`}>{f.status}</span>
+        </div>
+      ))
+    );
+
+  if (compact) {
+    if (error || !commits?.length) return <div className="git-none">{error ?? (commits ? "Henüz commit yok" : "")}</div>;
+    return (
+      <div className="history-compact">
+        {rows.map((row) => {
+          const open = selected?.hash === row.commit.hash;
+          return (
+            <div key={row.commit.hash}>
+              <div
+                className={`history-row ${open ? "selected" : ""}`}
+                onClick={() => setSelected(open ? null : row.commit)}
+                title={`${row.commit.subject}\n${row.commit.author} · ${new Date(row.commit.time * 1000).toLocaleString("tr-TR")} · ${row.commit.hash.slice(0, 7)}`}
+              >
+                <GraphCell row={row} width={width} />
+                <span className="history-subject">{row.commit.subject}</span>
+                {row.commit.refs.map((r) => (
+                  <span key={r} className={`ref ${r.startsWith("HEAD") ? "ref-head" : r.includes("/") ? "ref-remote" : ""}`}>
+                    {r.replace("HEAD -> ", "")}
+                  </span>
+                ))}
+              </div>
+              {open && <div className="history-inline-files">{fileRows(row.commit.hash)}</div>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (error) return <div className="history-empty">{error}</div>;
   if (!commits) return <div className="history-empty"><KiteLoader size={22} label="Geçmiş yükleniyor…" /></div>;

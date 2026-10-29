@@ -2,7 +2,7 @@
 //! the frontend maps ids to the same actions as its keyboard shortcuts.
 
 use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let item = |id: &str, text: &str, accel: &str| {
@@ -24,12 +24,16 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     let file = SubmenuBuilder::new(app, "Dosya")
+        .item(&item("new_file", "Yeni Dosya", "CmdOrCtrl+N")?)
+        .item(&item("new_window", "Yeni Pencere", "CmdOrCtrl+Shift+N")?)
+        .separator()
         .item(&item("open_folder", "Klasör Aç…", "CmdOrCtrl+O")?)
         .item(&item("quick_open", "Dosyaya Git…", "CmdOrCtrl+P")?)
         .item(&item("command_palette", "Komut Paleti…", "CmdOrCtrl+Shift+P")?)
         .item(&item("goto_line", "Satıra Git…", "CmdOrCtrl+G")?)
         .separator()
         .item(&item("save", "Kaydet", "CmdOrCtrl+S")?)
+        .item(&item("save_as", "Farklı Kaydet…", "CmdOrCtrl+Shift+S")?)
         .separator()
         .item(&item("close_tab", "Sekmeyi Kapat", "CmdOrCtrl+W")?)
         .build()?;
@@ -73,8 +77,21 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     MenuBuilder::new(app).items(&[&kite, &file, &edit, &view, &window]).build()
 }
 
-pub fn forward_events<R: Runtime>(app: &AppHandle<R>) {
+/// Menu actions go to the focused window only, so two windows never both react
+pub fn forward_events(app: &AppHandle) {
     app.on_menu_event(|app, event| {
-        let _ = app.emit("menu", event.id().as_ref());
+        let id = event.id().as_ref().to_string();
+        if id == "new_window" {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = crate::window::open_window(app).await;
+            });
+            return;
+        }
+        let focused = app.webview_windows().into_values().find(|w| w.is_focused().unwrap_or(false));
+        let _ = match focused {
+            Some(w) => app.emit_to(w.label(), "menu", id),
+            None => app.emit("menu", id),
+        };
     });
 }

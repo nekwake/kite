@@ -2,29 +2,37 @@
 //! affected paths, batched so a `git checkout` produces one event, not thousands.
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc;
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, State, WebviewWindow};
 
+/// One watcher per window, keyed by window label
 #[derive(Default)]
 pub struct WatchState {
-    watcher: Mutex<Option<RecommendedWatcher>>,
+    watchers: Mutex<HashMap<String, RecommendedWatcher>>,
+}
+
+impl WatchState {
+    pub fn remove(&self, label: &str) {
+        self.watchers.lock().unwrap().remove(label);
+    }
 }
 
 const BATCH: Duration = Duration::from_millis(250);
 const MAX_PATHS: usize = 500;
 
 #[tauri::command]
-pub fn watch_root(app: AppHandle, state: State<WatchState>, root: String) -> Result<(), String> {
+pub fn watch_root(app: AppHandle, window: WebviewWindow, state: State<WatchState>, root: String) -> Result<(), String> {
+    let label = window.label().to_string();
     let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
     let mut watcher = notify::recommended_watcher(tx).map_err(|e| e.to_string())?;
     watcher
         .watch(std::path::Path::new(&root), RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
     // Replacing the old watcher drops it, which closes its channel and ends its thread
-    *state.watcher.lock().unwrap() = Some(watcher);
+    state.watchers.lock().unwrap().insert(label.clone(), watcher);
 
     std::thread::spawn(move || {
         while let Ok(first) = rx.recv() {
@@ -39,7 +47,7 @@ pub fn watch_root(app: AppHandle, state: State<WatchState>, root: String) -> Res
                 add(ev);
             }
             let list: Vec<String> = paths.into_iter().take(MAX_PATHS).collect();
-            if app.emit("fs-changed", list).is_err() {
+            if app.emit_to(label.as_str(), "fs-changed", list).is_err() {
                 break;
             }
         }

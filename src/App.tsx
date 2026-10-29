@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
-import { ask, open } from "@tauri-apps/plugin-dialog";
-import { listen } from "@tauri-apps/api/event";
+import { ask, open, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { inTauri, listenHere } from "./lib/events";
+import { pruneTerminals } from "./lib/terminals";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, basename, ClaudeSession, dirname, FileChange, git, relativeTo } from "./lib/api";
+import { accounts, api, basename, ClaudeAccount, ClaudeSession, dirname, FileChange, git, GithubAccount, relativeTo } from "./lib/api";
 import { languageFor } from "./lib/monaco";
-import { diffTabId, DiffSource, FileTab, HISTORY_TAB_ID, isDirty, Tab, tabTitle } from "./lib/tabs";
+import { diffTabId, DiffSource, FileTab, groupOf, HISTORY_TAB_ID, isDirty, Tab, TabGroup, tabTitle } from "./lib/tabs";
 import { useGitStatus } from "./lib/useGitStatus";
 import { FileTree } from "./components/FileTree";
 import { EditorArea, Reveal } from "./components/EditorArea";
@@ -26,8 +28,6 @@ import { ClaudeSessions } from "./components/ClaudeSessions";
 const LAST_ROOT_KEY = "kite.lastRoot";
 const RECENT_PROJECTS_KEY = "kite.recentProjects";
 
-// Window APIs throw when the UI runs in a plain browser (UI previews/tests)
-const inTauri = "__TAURI_INTERNALS__" in window;
 
 function recentProjects(): string[] {
   try {
@@ -50,7 +50,12 @@ function storedRoot(): string | null {
 export default function App() {
   const [root, setRoot] = useState<string | null>(null);
   const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  // Each editor group has its own active tab; the focused group drives everything else
+  const [activeMain, setActiveMain] = useState<string | null>(null);
+  const [activeRight, setActiveRight] = useState<string | null>(null);
+  const [focusedGroup, setFocusedGroup] = useState<TabGroup>("main");
+  const [rightW, setRightW] = useState(560);
+  const activeId = focusedGroup === "right" && activeRight ? activeRight : activeMain;
   const [cursor, setCursor] = useState<[number, number]>([1, 1]);
   const [error, setError] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
@@ -72,6 +77,19 @@ export default function App() {
   const nextCenterTerm = useRef(1);
 
   const { status: gitStatus, refresh: refreshGit } = useGitStatus(root);
+
+  // Connected accounts; re-checked when the window regains focus (after a CLI login)
+  const [github, setGithub] = useState<GithubAccount | null>(null);
+  const [claudeAcc, setClaudeAcc] = useState<ClaudeAccount | null>(null);
+  const loadAccounts = useCallback(() => {
+    accounts.github().then(setGithub).catch(() => {});
+    accounts.claude().then(setClaudeAcc).catch(() => {});
+  }, []);
+  useEffect(() => {
+    loadAccounts();
+    window.addEventListener("focus", loadAccounts);
+    return () => window.removeEventListener("focus", loadAccounts);
+  }, [loadAccounts]);
 
   const newTerminal = useCallback(
     (opts: { command?: string; title?: string; cwd?: string } = {}) => {
@@ -99,7 +117,9 @@ export default function App() {
   const switchRoot = useCallback((dir: string) => {
     monaco.editor.getModels().forEach((m) => m.dispose());
     setTabs([]);
-    setActiveId(null);
+    setActiveMain(null);
+    setActiveRight(null);
+    setFocusedGroup("main");
     setTerms([]);
     setActiveTerm(null);
     setRecent([]);
@@ -114,6 +134,7 @@ export default function App() {
 
   // Open the folder passed on the command line, or the last one used
   useEffect(() => {
+    if (new URLSearchParams(location.search).has("blank")) return;
     api.initialDir().then((dir) => {
       const d = dir ?? storedRoot();
       if (d) switchRoot(d);
@@ -134,6 +155,54 @@ export default function App() {
   const activeTab = tabs.find((t) => t.id === activeId);
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  const hasRight = tabs.some((t) => groupOf(t) === "right");
+
+  /** Shows a tab in its group and focuses that group */
+  const setActiveId = (id: string | null, group?: TabGroup) => {
+    const tab = id ? tabsRef.current.find((t) => t.id === id) : undefined;
+    const g = group ?? (tab ? groupOf(tab) : "main");
+    if (g === "right") setActiveRight(id);
+    else setActiveMain(id);
+    if (id) setFocusedGroup(g);
+  };
+
+  /** After tabs were removed, point each group at a tab it still has */
+  const fixActive = (rest: Tab[]) => {
+    const pick = (g: TabGroup, cur: string | null) =>
+      cur && rest.some((t) => t.id === cur) ? cur : rest.filter((t) => groupOf(t) === g).pop()?.id ?? null;
+    setActiveMain(pick("main", activeMain));
+    const r = pick("right", activeRight);
+    setActiveRight(r);
+    if (!r) setFocusedGroup("main");
+  };
+
+  // Close editor-area terminals whose tab is gone
+  useEffect(() => {
+    pruneTerminals(new Set(tabs.filter((t) => t.kind === "terminal").map((t) => t.id)));
+  }, [tabs]);
+
+  const moveTab = (id: string, group: TabGroup, beforeId?: string) => {
+    if (beforeId === id) return;
+    const tab = tabs.find((t) => t.id === id);
+    if (!tab) return;
+    const rest = tabs.filter((t) => t.id !== id);
+    const i = beforeId ? rest.findIndex((t) => t.id === beforeId) : -1;
+    rest.splice(i < 0 ? rest.length : i, 0, { ...tab, group });
+    setTabs(rest);
+    const from = groupOf(tab);
+    if (from !== group) {
+      const left = rest.filter((t) => groupOf(t) === from);
+      const cur = from === "right" ? activeRight : activeMain;
+      if (cur === id) (from === "right" ? setActiveRight : setActiveMain)(left[left.length - 1]?.id ?? null);
+    }
+    setActiveId(id, group);
+  };
+
+  const untitledSeq = useRef(1);
+  const newFile = () => {
+    const path = `/__untitled__/Adsız-${untitledSeq.current++}`;
+    addOrFocusTab({ kind: "file", id: path, path, content: "", saved: "", untitled: true });
+  };
   const activeFile = activeTab?.kind === "file" ? activeTab : null;
 
   // Most recently focused files first, for the empty ⌘P list
@@ -209,6 +278,11 @@ export default function App() {
     [tabs],
   );
 
+  // Sign-in runs the official CLIs in a terminal; Kite never sees the tokens
+  const connectGithub = () =>
+    newTerminal({ command: "gh auth login --web --git-protocol https && gh auth setup-git", title: "GitHub girişi" });
+  const connectClaude = () => newTerminal({ command: "claude /login", title: "Claude girişi" });
+
   const showHistory = () => addOrFocusTab({ kind: "history", id: HISTORY_TAB_ID });
 
   // Files reverted by git: reload their tabs unless they hold unsaved edits
@@ -235,7 +309,10 @@ export default function App() {
         return { ...t, id: np, path: np };
       }),
     );
-    setActiveId((id) => (id && moved(id)) || id);
+    const nm = activeMain && moved(activeMain);
+    if (nm) setActiveMain(nm);
+    const nr = activeRight && moved(activeRight);
+    if (nr) setActiveRight(nr);
   };
 
   const onDeleted = (path: string) => {
@@ -245,7 +322,7 @@ export default function App() {
     });
     const rest = tabs.filter((t) => !(t.kind === "file" && gone(t.path)));
     setTabs(rest);
-    if (activeId && !rest.some((t) => t.id === activeId)) setActiveId(rest[rest.length - 1]?.id ?? null);
+    fixActive(rest);
   };
 
   // "Claude oturumuna ekle": the active Claude tab, else the newest one, else a new session
@@ -278,7 +355,7 @@ export default function App() {
     });
     const rest = tabs.filter((t) => !toClose.includes(t.id));
     setTabs(rest);
-    if (activeId && toClose.includes(activeId)) setActiveId(rest[rest.length - 1]?.id ?? null);
+    fixActive(rest);
     if (toClose.length < ids.length) setError("Kaydedilmemiş dosyalar açık bırakıldı");
   };
 
@@ -291,6 +368,11 @@ export default function App() {
       { label: "Sağdakileri kapat", onClick: () => closeTabs(tabs.slice(idx + 1).map((t) => t.id)) },
       { label: "Kaydedilenleri kapat", onClick: () => closeTabs(tabs.filter((t) => !isDirty(t)).map((t) => t.id)) },
       { label: "Tümünü kapat", onClick: () => closeTabs(tabs.map((t) => t.id)) },
+      "separator",
+      groupOf(tab) === "main"
+        ? { label: "Sağ panele taşı", onClick: () => moveTab(tab.id, "right") }
+        : { label: "Sol panele taşı", onClick: () => moveTab(tab.id, "main") },
+      ...(tab.kind === "file" ? ([{ label: "Farklı kaydet…", onClick: () => saveAs(tab) }] as MenuItem[]) : []),
       "separator",
       ...(path
         ? ([
@@ -327,14 +409,43 @@ export default function App() {
       if (!ok) return;
     }
     if (tab.kind === "file") monaco.editor.getModels().find((m) => m.uri.path === tab.path)?.dispose();
-    const idx = tabs.findIndex((t) => t.id === id);
+    const g = groupOf(tab);
+    const inGroup = tabs.filter((t) => groupOf(t) === g);
+    const idx = inGroup.findIndex((t) => t.id === id);
     const rest = tabs.filter((t) => t.id !== id);
+    const restInGroup = rest.filter((t) => groupOf(t) === g);
     setTabs(rest);
-    if (activeId === id) setActiveId(rest[Math.min(idx, rest.length - 1)]?.id ?? null);
+    // The neighbour takes over, like closing a tab in VS Code
+    if ((g === "right" ? activeRight : activeMain) === id) {
+      const next = restInGroup[Math.min(idx, restInGroup.length - 1)]?.id ?? null;
+      (g === "right" ? setActiveRight : setActiveMain)(next);
+      if (!next && g === "right") setFocusedGroup("main");
+    }
+  };
+
+  // Writes a tab to a path picked in the save panel and turns it into a regular file tab
+  const saveAs = async (tab: FileTab) => {
+    const target = await saveDialog({
+      title: "Farklı kaydet",
+      defaultPath: `${root ?? ""}/${basename(tab.path)}`,
+    });
+    if (!target) return;
+    try {
+      await api.writeFile(target, tab.content);
+    } catch (e) {
+      setError(`Kaydedilemedi: ${e}`);
+      return;
+    }
+    monaco.editor.getModels().find((m) => m.uri.path === tab.path)?.dispose();
+    const saved: FileTab = { kind: "file", id: target, path: target, content: tab.content, saved: tab.content, group: tab.group };
+    setTabs((ts) => [...ts.filter((t) => t.id !== target).map((t) => (t.id === tab.id ? saved : t))]);
+    setActiveId(target, groupOf(tab));
+    refreshGit();
   };
 
   const save = useCallback(async () => {
     if (!activeFile) return;
+    if (activeFile.untitled) return saveAs(activeFile);
     const { path, content } = activeFile;
     try {
       await api.writeFile(path, content);
@@ -348,14 +459,14 @@ export default function App() {
 
   // Optional auto-save, one second after typing stops
   useEffect(() => {
-    if (!activeFile || !isDirty(activeFile) || !getSettings().autoSave) return;
+    if (!activeFile || activeFile.untitled || !isDirty(activeFile) || !getSettings().autoSave) return;
     const t = setTimeout(save, 1000);
     return () => clearTimeout(t);
   }, [activeFile, save]);
 
   // External changes (git checkout, Claude edits) reload open tabs without unsaved edits
   useEffect(() => {
-    const unlisten = listen<string[]>("fs-changed", (e) => {
+    const unlisten = listenHere<string[]>("fs-changed", (e) => {
       const changed = new Set(e.payload);
       const open = tabsRef.current.filter((t) => t.kind === "file" && changed.has(t.path)).map((t) => (t as FileTab).path);
       if (open.length) reloadRef.current(open);
@@ -407,6 +518,9 @@ export default function App() {
   const actions: Record<string, () => void> = {
     settings: () => setSettingsOpen(true),
     open_folder: openFolder,
+    new_file: newFile,
+    save_as: () => activeFile && saveAs(activeFile),
+    new_window: () => invoke("open_window"),
     quick_open: () => root && setQuickOpen(""),
     command_palette: () => root && setQuickOpen(">"),
     goto_line: () => root && activeFile && setQuickOpen(":"),
@@ -438,12 +552,12 @@ export default function App() {
 
   useEffect(() => {
     const keys: Record<string, string> = {
-      ",": "settings", o: "open_folder", p: "quick_open", s: "save", w: "close_tab", g: "goto_line",
+      ",": "settings", n: "new_file", o: "open_folder", p: "quick_open", s: "save", w: "close_tab", g: "goto_line",
       "=": "zoom_in", "+": "zoom_in", "-": "zoom_out", "0": "zoom_reset",
       b: "toggle_sidebar", j: "toggle_terminal", t: "new_terminal", l: "new_claude",
     };
     const shiftKeys: Record<string, string> = {
-      e: "view_files", f: "view_search", g: "view_git", c: "view_claude", p: "command_palette",
+      e: "view_files", f: "view_search", g: "view_git", c: "view_claude", p: "command_palette", s: "save_as",
     };
     // Capture phase so shortcuts win over Monaco and xterm
     const onKey = (e: KeyboardEvent) => {
@@ -455,7 +569,7 @@ export default function App() {
       runAction(id);
     };
     window.addEventListener("keydown", onKey, true);
-    const unlisten = listen<string>("menu", (e) => runAction(e.payload));
+    const unlisten = listenHere<string>("menu", (e) => runAction(e.payload));
     return () => {
       window.removeEventListener("keydown", onKey, true);
       unlisten.then((f) => f());
@@ -468,7 +582,10 @@ export default function App() {
     { id: "view_claude", label: "Claude: Oturumları göster", shortcut: "⌘⇧C", run: () => runAction("view_claude") },
     { id: "quick_open", label: "Dosyaya git", shortcut: "⌘P", run: () => setTimeout(() => setQuickOpen(""), 0) },
     { id: "goto_line", label: "Satıra git", shortcut: "⌘G", run: () => setTimeout(() => setQuickOpen(":"), 0) },
+    { id: "new_file", label: "Dosya: Yeni dosya", shortcut: "⌘N", run: newFile },
     { id: "save", label: "Dosya: Kaydet", shortcut: "⌘S", run: () => runAction("save") },
+    { id: "save_as", label: "Dosya: Farklı kaydet", shortcut: "⌘⇧S", run: () => runAction("save_as") },
+    { id: "new_window", label: "Yeni pencere", shortcut: "⌘⇧N", run: () => invoke("open_window") },
     { id: "close_tab", label: "Sekmeyi kapat", shortcut: "⌘W", run: () => runAction("close_tab") },
     { id: "close_all", label: "Tüm sekmeleri kapat", run: () => closeTabs(tabs.map((t) => t.id)) },
     { id: "open_folder", label: "Klasör aç", shortcut: "⌘O", run: () => runAction("open_folder") },
@@ -495,6 +612,20 @@ export default function App() {
       .filter((p) => p !== root)
       .map((p) => ({ id: `project:${p}`, label: `Proje aç: ${basename(p)}  —  ${p.replace(/^\/Users\/[^/]+/, "~")}`, run: () => switchRoot(p) })),
   ];
+
+  const editorHandlers = {
+    onClose: closeTab,
+    onChange: (path: string, content: string) =>
+      setTabs((ts) => ts.map((t) => (t.id === path && t.kind === "file" ? { ...t, content } : t))),
+    onCursor: (l: number, c: number) => setCursor([l, c]),
+    onMoveTab: moveTab,
+    onNewFile: newFile,
+    onTerminalExit: (id: string) => closeTab(id),
+    reveal,
+    renderHistory: () => (root ? <GitHistory root={root} onOpenDiff={openDiff} /> : null),
+    root: root ?? "",
+    onTabMenu: tabMenu,
+  };
 
   // Git status letters for the file tree, plus every folder that contains a change
   const decorations = useMemo(() => {
@@ -527,7 +658,22 @@ export default function App() {
             </div>
           )}
         </div>
-        {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          github={github}
+          claude={claudeAcc}
+          onConnectGithub={() => {
+            setSettingsOpen(false);
+            connectGithub();
+          }}
+          onConnectClaude={() => {
+            setSettingsOpen(false);
+            connectClaude();
+          }}
+          onRefreshAccounts={loadAccounts}
+        />
+      )}
       </div>
     );
   }
@@ -579,6 +725,9 @@ export default function App() {
                   onOpenFile={openFile}
                   onShowHistory={showHistory}
                   onDiscarded={reloadFiles}
+                  onOpenCommitDiff={openDiff}
+                  githubLogin={github?.login ?? null}
+                  onConnectGithub={connectGithub}
                 />
               </div>
               <div className="sidebar-view" style={{ display: view === "claude" ? "flex" : "none" }}>
@@ -597,19 +746,32 @@ export default function App() {
         <div className="main">
           <div className="main-editor">
             <EditorArea
-              tabs={tabs}
-              activeId={activeId}
-              onSelect={setActiveId}
-              onClose={closeTab}
-              onChange={(path, content) =>
-                setTabs((ts) => ts.map((t) => (t.id === path && t.kind === "file" ? { ...t, content } : t)))
-              }
-              onCursor={(l, c) => setCursor([l, c])}
-              reveal={reveal}
-              renderHistory={() => <GitHistory root={root} onOpenDiff={openDiff} />}
-              root={root}
-              onTabMenu={tabMenu}
+              group="main"
+              tabs={tabs.filter((t) => groupOf(t) === "main")}
+              activeId={activeMain}
+              focused={focusedGroup === "main" && hasRight}
+              canSplit={!hasRight}
+              onFocus={() => setFocusedGroup("main")}
+              onSelect={(id) => setActiveId(id, "main")}
+              {...editorHandlers}
             />
+            {hasRight && (
+              <>
+                <Resizer dir="x" onDrag={(d) => setRightW((w) => clamp(w - d, 280, 1400))} />
+                <div className="right-group" style={{ width: rightW }}>
+                  <EditorArea
+                    group="right"
+                    tabs={tabs.filter((t) => groupOf(t) === "right")}
+                    activeId={activeRight}
+                    focused={focusedGroup === "right"}
+                    canSplit={false}
+                    onFocus={() => setFocusedGroup("right")}
+                    onSelect={(id) => setActiveId(id, "right")}
+                    {...editorHandlers}
+                  />
+                </div>
+              </>
+            )}
           </div>
           {/* Kept mounted while hidden so shells keep running */}
           <div style={{ display: panelOpen && terms.length ? "contents" : "none" }}>
@@ -627,7 +789,22 @@ export default function App() {
           </div>
         </div>
       </div>
-      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          github={github}
+          claude={claudeAcc}
+          onConnectGithub={() => {
+            setSettingsOpen(false);
+            connectGithub();
+          }}
+          onConnectClaude={() => {
+            setSettingsOpen(false);
+            connectClaude();
+          }}
+          onRefreshAccounts={loadAccounts}
+        />
+      )}
       {quickOpen !== null && (
         <QuickOpen
           root={root}

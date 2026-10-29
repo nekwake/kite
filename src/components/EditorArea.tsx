@@ -2,23 +2,32 @@ import { ReactNode, useEffect, useRef } from "react";
 import Editor, { DiffEditor } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import { languageFor } from "../lib/monaco";
-import { isDirty, Tab, tabTitle } from "../lib/tabs";
+import { isDirty, Tab, TabGroup, tabTitle } from "../lib/tabs";
 import { useSettings } from "../lib/settings";
 import { FileIcon } from "../lib/fileIcons";
 import { basename } from "../lib/api";
+import { startDrag } from "../lib/drag";
 import { KiteMark } from "./KiteLogo";
-import { TerminalView } from "./TerminalPanel";
+import { TerminalSlot } from "./TerminalPanel";
 
 /** Jump target; `nonce` makes repeated jumps to the same spot fire again */
 export type Reveal = { path: string; line: number; start: number; end: number; nonce: number };
 
 type Props = {
+  group: TabGroup;
   tabs: Tab[];
   activeId: string | null;
+  focused: boolean;
+  /** Main group only: show the "drop here to split" zone while a tab is dragged */
+  canSplit: boolean;
+  onFocus: () => void;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onChange: (path: string, content: string) => void;
   onCursor: (line: number, col: number) => void;
+  onMoveTab: (id: string, group: TabGroup, beforeId?: string) => void;
+  onNewFile: () => void;
+  onTerminalExit: (id: string) => void;
   reveal: Reveal | null;
   renderHistory: () => ReactNode;
   root: string;
@@ -27,9 +36,6 @@ type Props = {
 
 const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
   fontFamily: "'SF Mono', Menlo, monospace",
-  fontSize: 13,
-  lineHeight: 20,
-  minimap: { enabled: false },
   smoothScrolling: true,
   cursorSmoothCaretAnimation: "on",
   renderLineHighlight: "line",
@@ -41,11 +47,18 @@ const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
 };
 
 export function EditorArea(props: Props) {
-  const { tabs, activeId, onSelect, onClose, onChange, onCursor, reveal, renderHistory, root, onTabMenu } = props;
+  const { group, tabs, activeId, onSelect, onClose, onChange, onCursor, reveal, renderHistory, root, onTabMenu } = props;
   const active = tabs.find((t) => t.id === activeId);
-  const { editorFontSize } = useSettings();
-  const editorOptions = { ...EDITOR_OPTIONS, fontSize: editorFontSize, lineHeight: Math.round(editorFontSize * 1.55) };
   const activeFile = active?.kind === "file" ? active : null;
+  const settings = useSettings();
+  const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
+    ...EDITOR_OPTIONS,
+    fontSize: settings.editorFontSize,
+    lineHeight: Math.round(settings.editorFontSize * 1.55),
+    minimap: { enabled: settings.minimap },
+    wordWrap: settings.wordWrap ? "on" : "off",
+    tabSize: settings.tabSize,
+  };
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   const revealRef = useRef(reveal);
@@ -64,22 +77,40 @@ export function EditorArea(props: Props) {
     if (!activeFile) editorRef.current = null;
   }, [activeFile]);
 
+  const dragTab = (e: React.PointerEvent, t: Tab) =>
+    startDrag(
+      e,
+      tabTitle(t),
+      "[data-tab-drop]",
+      (target) => {
+        const el = target as HTMLElement;
+        props.onMoveTab(t.id, el.dataset.tabDrop as TabGroup, el.dataset.tabBefore);
+      },
+      "dragging-tab",
+    );
+
+  const splitZone = props.canSplit && (
+    <div className="split-zone" data-tab-drop="right">
+      <span>Sağ panele taşı</span>
+    </div>
+  );
+
   if (!active) {
     return (
-      <div className="editor-empty">
+      <div className="editor-empty" data-tab-drop={group} onMouseDown={props.onFocus}>
+        {splitZone}
         <div className="brand brand-faded"><KiteMark size={72} /></div>
         <div className="shortcuts">
           <span>Dosyaya git</span><kbd>⌘P</kbd>
           <span>Komut paleti</span><kbd>⌘⇧P</kbd>
+          <span>Yeni dosya</span><kbd>⌘N</kbd>
           <span>Projede ara</span><kbd>⌘⇧F</kbd>
           <span>Git</span><kbd>⌘⇧G</kbd>
-          <span>Klasör aç</span><kbd>⌘O</kbd>
-          <span>Kaydet</span><kbd>⌘S</kbd>
           <span>Kenar çubuğu</span><kbd>⌘B</kbd>
           <span>Terminal</span><kbd>⌘J</kbd>
-          <span>Yeni terminal</span><kbd>⌘T</kbd>
           <span>Yeni Claude oturumu</span><kbd>⌘L</kbd>
           <span>Claude oturumları</span><kbd>⌘⇧C</kbd>
+          <span>Yeni pencere</span><kbd>⌘⇧N</kbd>
           <span>Ayarlar</span><kbd>⌘,</kbd>
         </div>
       </div>
@@ -87,16 +118,19 @@ export function EditorArea(props: Props) {
   }
 
   return (
-    <div className="editor-area">
-      <div className="tabs">
+    <div className={`editor-area ${props.focused ? "focused" : ""}`} onMouseDownCapture={props.onFocus}>
+      <div className="tabs" data-tab-drop={group}>
         {tabs.map((t) => (
           <div
             key={t.id}
             className={`tab ${t.id === activeId ? "active" : ""} tab-${t.kind}`}
+            data-tab-drop={group}
+            data-tab-before={t.id}
+            onPointerDown={(e) => dragTab(e, t)}
             onClick={() => onSelect(t.id)}
             onAuxClick={(e) => e.button === 1 && onClose(t.id)}
             onContextMenu={(e) => onTabMenu(e, t)}
-            title={t.kind === "history" ? undefined : t.kind === "terminal" ? t.cwd : t.path}
+            title={t.kind === "history" ? undefined : t.kind === "terminal" ? t.cwd : t.kind === "file" && t.untitled ? undefined : t.path}
           >
             {t.kind === "file" && <FileIcon name={basename(t.path)} />}
             {t.kind === "diff" && <span className="tab-icon">±</span>}
@@ -105,6 +139,7 @@ export function EditorArea(props: Props) {
             <span>{tabTitle(t)}</span>
             <button
               className={`tab-close ${isDirty(t) ? "dirty" : ""}`}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose(t.id);
@@ -115,10 +150,16 @@ export function EditorArea(props: Props) {
             </button>
           </div>
         ))}
+        <button className="tab-new" onClick={props.onNewFile} title="Yeni dosya (⌘N)">+</button>
       </div>
       {activeFile && (
         <div className="breadcrumbs">
-          {(activeFile.path.startsWith(root + "/") ? activeFile.path.slice(root.length + 1) : activeFile.path)
+          {(activeFile.untitled
+            ? basename(activeFile.path)
+            : activeFile.path.startsWith(root + "/")
+              ? activeFile.path.slice(root.length + 1)
+              : activeFile.path
+          )
             .split("/")
             .map((seg, i, all) => (
               <span key={i} className={i === all.length - 1 ? "crumb-last" : ""}>
@@ -129,7 +170,8 @@ export function EditorArea(props: Props) {
             ))}
         </div>
       )}
-      <div className="editor-host">
+      <div className="editor-host" data-tab-drop={group}>
+        {splitZone}
         {active.kind === "file" && (
           <Editor
             theme="kite-dark"
@@ -144,9 +186,7 @@ export function EditorArea(props: Props) {
               // A jump requested before the editor existed (first file opened from search)
               const r = revealRef.current;
               if (r && r.path === editor.getModel()?.uri.path) applyReveal(editor, r);
-              editor.onDidChangeCursorPosition((e) =>
-                onCursor(e.position.lineNumber, e.position.column),
-              );
+              editor.onDidChangeCursorPosition((e) => onCursor(e.position.lineNumber, e.position.column));
             }}
             options={editorOptions}
           />
@@ -171,12 +211,12 @@ export function EditorArea(props: Props) {
           />
         )}
         {active.kind === "history" && renderHistory()}
-        {/* Terminal tabs stay mounted while hidden so their sessions keep running */}
+        {/* Terminal tabs stay attached while hidden so their sessions keep running */}
         {tabs.map(
           (t) =>
             t.kind === "terminal" && (
               <div key={t.id} className="center-terminal" data-tab-id={t.id} style={{ display: t.id === activeId ? "block" : "none" }}>
-                <TerminalView tab={t} active={t.id === activeId} onExit={() => onClose(t.id)} />
+                <TerminalSlot id={t.id} cwd={t.cwd} command={t.command} active={t.id === activeId} onExit={props.onTerminalExit} />
               </div>
             ),
         )}

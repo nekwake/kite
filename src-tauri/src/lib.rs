@@ -1,3 +1,4 @@
+mod accounts;
 mod claude;
 mod fs;
 mod git;
@@ -5,6 +6,9 @@ mod menu;
 mod pty;
 mod search;
 mod watch;
+mod window;
+
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,6 +18,11 @@ pub fn run() {
         .manage(pty::PtyState::default())
         .manage(claude::ClaudeState::default())
         .manage(watch::WatchState::default())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                window.state::<watch::WatchState>().remove(window.label());
+            }
+        })
         .setup(|app| {
             app.set_menu(menu::build(app.handle())?)?;
             menu::forward_events(app.handle());
@@ -49,6 +58,10 @@ pub fn run() {
             git::git_log,
             git::git_commit_files,
             claude::claude_sessions,
+            accounts::github_account,
+            accounts::claude_account,
+            accounts::github_publish,
+            window::open_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

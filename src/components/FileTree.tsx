@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { listenHere } from "../lib/events";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { api, basename, dirname, Entry, relativeTo } from "../lib/api";
 import { startPathDrag } from "../lib/drag";
@@ -52,7 +52,7 @@ export function FileTree(props: Props) {
 
   // Reload the open folders that contain anything the watcher saw change
   useEffect(() => {
-    const unlisten = listen<string[]>("fs-changed", (e) => {
+    const unlisten = listenHere<string[]>("fs-changed", (e) => {
       const dirs = new Set(e.payload.filter((p) => !p.includes("/.git/") && !p.endsWith("/.git")).map(dirname));
       expandedRef.current.forEach((d) => dirs.has(d) && load(d));
     });

@@ -64,6 +64,7 @@ pub struct GitStatus {
     ahead: u32,
     behind: u32,
     changes: Vec<FileChange>,
+    remotes: Vec<String>,
 }
 
 fn parse_branch_header(h: &str, s: &mut GitStatus) {
@@ -94,7 +95,7 @@ fn parse_branch_header(h: &str, s: &mut GitStatus) {
 }
 
 fn parse_status(out: &str, top: &Path) -> GitStatus {
-    let mut s = GitStatus { is_repo: true, branch: None, upstream: None, ahead: 0, behind: 0, changes: vec![] };
+    let mut s = GitStatus { is_repo: true, branch: None, upstream: None, ahead: 0, behind: 0, changes: vec![], remotes: vec![] };
     let mut fields = out.split('\0').filter(|f| !f.is_empty());
     while let Some(f) = fields.next() {
         if f.starts_with("## ") {
@@ -132,10 +133,12 @@ fn parse_status(out: &str, top: &Path) -> GitStatus {
 #[tauri::command]
 pub async fn git_status(root: String) -> Result<GitStatus, String> {
     let Ok(top) = toplevel(&root) else {
-        return Ok(GitStatus { is_repo: false, branch: None, upstream: None, ahead: 0, behind: 0, changes: vec![] });
+        return Ok(GitStatus { is_repo: false, branch: None, upstream: None, ahead: 0, behind: 0, changes: vec![], remotes: vec![] });
     };
     let out = git_str(&top, &["status", "--porcelain=v1", "-b", "-z", "-uall"])?;
-    Ok(parse_status(&out, &top))
+    let mut status = parse_status(&out, &top);
+    status.remotes = git_str(&top, &["remote"]).unwrap_or_default().lines().map(String::from).collect();
+    Ok(status)
 }
 
 #[derive(Serialize)]
@@ -255,6 +258,8 @@ pub async fn git_sync(root: String, op: String) -> Result<String, String> {
         "pull" => &["pull", "--ff-only"],
         "push" => &["push"],
         "fetch" => &["fetch", "--all", "--prune"],
+        // First push of a new branch: create it on origin and track it
+        "publish" => &["push", "-u", "origin", "HEAD"],
         _ => return Err(format!("bilinmeyen işlem: {op}")),
     };
     git_str(&top, args)

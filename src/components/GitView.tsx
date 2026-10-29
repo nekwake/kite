@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Branches, FileChange, git, GitStatus } from "../lib/api";
+import { accounts, basename, Branches, FileChange, git, GitStatus } from "../lib/api";
 import { KiteLoader } from "./KiteLogo";
+import { GitHistory } from "./GitHistory";
+import { Resizer } from "./Chrome";
 
 type Props = {
   root: string;
@@ -11,6 +13,10 @@ type Props = {
   onOpenFile: (path: string) => void;
   onShowHistory: () => void;
   onDiscarded: (paths: string[]) => void;
+  onOpenCommitDiff: (change: FileChange, rev: string) => void;
+  /** Signed-in GitHub user, or null when `gh` isn't connected */
+  githubLogin: string | null;
+  onConnectGithub: () => void;
 };
 
 const STATUS_TITLE: Record<string, string> = {
@@ -18,12 +24,16 @@ const STATUS_TITLE: Record<string, string> = {
   U: "Takip edilmiyor", C: "Çakışma",
 };
 
-export function GitView({ root, status, refresh, onOpenDiff, onOpenFile, onShowHistory, onDiscarded }: Props) {
+export function GitView(props: Props) {
+  const { root, status, refresh, onOpenDiff, onOpenFile, onShowHistory, onDiscarded, githubLogin, onConnectGithub, onOpenCommitDiff } = props;
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [branches, setBranches] = useState<Branches | null>(null);
   const [newBranch, setNewBranch] = useState<string | null>(null);
+  const [publish, setPublish] = useState<{ name: string; private: boolean } | null>(null);
+  const [graphH, setGraphH] = useState(260);
+  const [graphOpen, setGraphOpen] = useState(true);
 
   const loadBranches = () => git.branches(root).then(setBranches).catch(() => setBranches(null));
   useEffect(() => {
@@ -100,13 +110,45 @@ export function GitView({ root, status, refresh, onOpenDiff, onOpenFile, onShowH
   };
 
   const syncLabel = [status.behind ? `↓${status.behind}` : "", status.ahead ? `↑${status.ahead}` : ""].join(" ").trim();
+  const hasRemote = status.remotes.length > 0;
+  const refreshKey = `${status.branch}|${status.ahead}|${status.behind}|${status.changes.length}`;
+
+  const sync = () =>
+    run("sync", async () => {
+      if (status.behind) await git.sync(root, "pull");
+      if (status.ahead) await git.sync(root, "push");
+    });
+
+  const doPublish = async () => {
+    if (!publish?.name.trim()) return;
+    const p = publish;
+    setPublish(null);
+    await run("publish", () => accounts.publish(root, p.name.trim(), p.private));
+  };
+
+  // The one next step for this branch, like VS Code's Publish / Sync button
+  const remoteAction = !hasRemote ? (
+    githubLogin ? (
+      <button className="secondary-btn" disabled={!!busy} onClick={() => setPublish({ name: basename(root), private: true })}>
+        ☁ GitHub'a yayınla
+      </button>
+    ) : (
+      <button className="secondary-btn" onClick={onConnectGithub}>GitHub'ı bağla</button>
+    )
+  ) : !status.upstream ? (
+    <button className="secondary-btn" disabled={!!busy} onClick={() => run("publish", () => git.sync(root, "publish"))}>
+      ☁ Branch'i yayınla
+    </button>
+  ) : syncLabel ? (
+    <button className="secondary-btn" disabled={!!busy} onClick={sync}>⟳ Senkronize et {syncLabel}</button>
+  ) : null;
 
   return (
     <Section
       title="KAYNAK KONTROLÜ"
       actions={
         <>
-          <button className="icon-btn" title="Geçmiş" onClick={onShowHistory}>⎇</button>
+          <button className="icon-btn" title="Geçmişi sekmede aç" onClick={onShowHistory}>⎇</button>
           <button className="icon-btn" title="Yenile" onClick={() => refresh()}>↻</button>
         </>
       }
@@ -123,16 +165,6 @@ export function GitView({ root, status, refresh, onOpenDiff, onOpenFile, onShowH
           {branches?.local.map((b) => <option key={b} value={b}>⎇ {b}</option>)}
           <option value="__new__">+ Yeni branch…</option>
         </select>
-        {status.upstream && (
-          <>
-            <button className="git-sync" disabled={!!busy} onClick={() => run("pull", () => git.sync(root, "pull"))} title={`${status.upstream} üzerinden çek (pull)`}>
-              ↓{status.behind || ""}
-            </button>
-            <button className="git-sync" disabled={!!busy} onClick={() => run("push", () => git.sync(root, "push"))} title={`${status.upstream} hedefine gönder (push)`}>
-              ↑{status.ahead || ""}
-            </button>
-          </>
-        )}
       </div>
 
       {newBranch !== null && (
@@ -174,9 +206,33 @@ export function GitView({ root, status, refresh, onOpenDiff, onOpenFile, onShowH
         <button className="primary-btn git-commit-btn" disabled={!canCommit} onClick={commit}>
           {busy === "commit" ? "Commit'leniyor…" : commitAll && status.changes.length ? "Tümünü commit'le" : "Commit"}
         </button>
+        {remoteAction}
+        {publish && (
+          <div className="publish-box">
+            <label>Depo adı</label>
+            <input
+              autoFocus
+              className="search-input"
+              value={publish.name}
+              onChange={(e) => setPublish({ ...publish, name: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") doPublish();
+                if (e.key === "Escape") setPublish(null);
+              }}
+              spellCheck={false}
+            />
+            <div className="segmented">
+              <button className={publish.private ? "on" : ""} onClick={() => setPublish({ ...publish, private: true })}>Gizli</button>
+              <button className={!publish.private ? "on" : ""} onClick={() => setPublish({ ...publish, private: false })}>Herkese açık</button>
+            </div>
+            <div className="publish-actions">
+              <button className="secondary-btn" onClick={() => setPublish(null)}>Vazgeç</button>
+              <button className="primary-btn" onClick={doPublish}>github.com/{githubLogin}/{publish.name.trim() || "…"} oluştur</button>
+            </div>
+          </div>
+        )}
         {busy && busy !== "commit" && <KiteLoader size={14} label={busyLabel(busy)} />}
         {error && <div className="git-error">{error}</div>}
-        {!error && syncLabel && !busy && <div className="git-hint">{status.upstream}: {syncLabel}</div>}
       </div>
 
       <div className="tree">
@@ -206,12 +262,44 @@ export function GitView({ root, status, refresh, onOpenDiff, onOpenFile, onShowH
           empty="Değişiklik yok"
         />
       </div>
+
+      {graphOpen && <Resizer dir="y" onDrag={(d) => setGraphH((h) => Math.min(800, Math.max(90, h - d)))} />}
+      <div className="git-graph" style={{ height: graphOpen ? graphH : undefined }}>
+        <div className="tree-row change-group-head git-graph-head" onClick={() => setGraphOpen(!graphOpen)}>
+          <span className="tree-chevron">{graphOpen ? "▾" : "▸"}</span>
+          <span>Geçmiş</span>
+          <span className="graph-actions" onClick={(e) => e.stopPropagation()}>
+            {hasRemote && (
+              <>
+                <button className="icon-btn" title="Uzak depodan getir (fetch)" disabled={!!busy} onClick={() => run("fetch", () => git.sync(root, "fetch"))}>⇣</button>
+                <button className="icon-btn" title={`Çek (pull)${status.behind ? ` — ${status.behind} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("pull", () => git.sync(root, "pull"))}>
+                  ↓{status.behind || ""}
+                </button>
+                <button className="icon-btn" title={`Gönder (push)${status.ahead ? ` — ${status.ahead} commit` : ""}`} disabled={!!busy || !status.upstream} onClick={() => run("push", () => git.sync(root, "push"))}>
+                  ↑{status.ahead || ""}
+                </button>
+              </>
+            )}
+            <button className="icon-btn" title="Geçmişi sekmede aç" onClick={onShowHistory}>⤢</button>
+          </span>
+        </div>
+        {graphOpen && (
+          <div className="git-graph-body">
+            <GitHistory root={root} compact refreshKey={refreshKey} onOpenDiff={onOpenCommitDiff} />
+          </div>
+        )}
+      </div>
     </Section>
   );
 }
 
 function busyLabel(b: string) {
-  return ({ pull: "Çekiliyor…", push: "Gönderiliyor…", branch: "Branch değiştiriliyor…", init: "Oluşturuluyor…" } as Record<string, string>)[b] ?? "Çalışıyor…";
+  return (
+    {
+      pull: "Çekiliyor…", push: "Gönderiliyor…", fetch: "Getiriliyor…", sync: "Senkronize ediliyor…",
+      publish: "GitHub'a yayınlanıyor…", branch: "Branch değiştiriliyor…", init: "Oluşturuluyor…",
+    } as Record<string, string>
+  )[b] ?? "Çalışıyor…";
 }
 
 function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {

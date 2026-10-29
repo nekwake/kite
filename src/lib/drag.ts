@@ -8,14 +8,21 @@ export const DROP_ATTR = "data-drop-paths";
 
 const THRESHOLD = 5;
 
-export function startPathDrag(e: React.PointerEvent, paths: string[], label: string) {
+/** Starts a pointer drag that drops onto the nearest element matching `selector` */
+export function startDrag(
+  e: React.PointerEvent,
+  label: string,
+  selector: string,
+  onDrop: (target: Element, ev: PointerEvent) => void,
+  bodyClass = "dragging-paths",
+) {
   if (e.button !== 0) return;
   const startX = e.clientX;
   const startY = e.clientY;
   let ghost: HTMLDivElement | null = null;
   let target: Element | null = null;
 
-  const targetAt = (x: number, y: number) => document.elementFromPoint(x, y)?.closest(`[${DROP_ATTR}]`) ?? null;
+  const targetAt = (x: number, y: number) => document.elementFromPoint(x, y)?.closest(selector) ?? null;
 
   const move = (ev: PointerEvent) => {
     if (!ghost) {
@@ -24,7 +31,7 @@ export function startPathDrag(e: React.PointerEvent, paths: string[], label: str
       ghost.className = "drag-ghost";
       ghost.textContent = label;
       document.body.appendChild(ghost);
-      document.body.classList.add("dragging-paths");
+      document.body.classList.add(bodyClass);
     }
     ghost.style.transform = `translate(${ev.clientX + 12}px, ${ev.clientY + 8}px)`;
     const t = targetAt(ev.clientX, ev.clientY);
@@ -35,20 +42,24 @@ export function startPathDrag(e: React.PointerEvent, paths: string[], label: str
     }
   };
 
-  const up = () => {
+  const up = (ev: PointerEvent) => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     if (!ghost) return;
     ghost.remove();
-    document.body.classList.remove("dragging-paths");
+    document.body.classList.remove(bodyClass);
     target?.classList.remove("drop-hover");
-    target?.dispatchEvent(new CustomEvent(DROP_EVENT, { detail: paths }));
+    if (target) onDrop(target, ev);
     // Swallow the click that follows the drag so the row isn't opened
     window.addEventListener("click", (c) => c.stopPropagation(), { capture: true, once: true });
   };
 
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
+}
+
+export function startPathDrag(e: React.PointerEvent, paths: string[], label: string) {
+  startDrag(e, label, `[${DROP_ATTR}]`, (t) => t.dispatchEvent(new CustomEvent(DROP_EVENT, { detail: paths })));
 }
 
 /** Delivers an OS (Finder) drop at window coordinates to the target under it */

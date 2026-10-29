@@ -50,6 +50,7 @@ export type GitStatus = {
   ahead: number;
   behind: number;
   changes: FileChange[];
+  remotes: string[];
 };
 export type FileVersions = { original: string; modified: string };
 export type Branches = { current: string | null; local: string[] };
@@ -74,6 +75,16 @@ export type ClaudeSession = {
   updated: number;
 };
 
+export type GithubAccount = { installed: boolean; login: string | null; name: string | null; avatarUrl: string | null };
+export type ClaudeAccount = { installed: boolean; version: string | null; email: string | null; name: string | null; plan: string | null };
+
+export const accounts = {
+  github: () => invoke<GithubAccount>("github_account"),
+  claude: () => invoke<ClaudeAccount>("claude_account"),
+  publish: (root: string, name: string, isPrivate: boolean) =>
+    invoke<string>("github_publish", { root, name, private: isPrivate }),
+};
+
 export const claude = {
   sessions: (root: string | null) => invoke<ClaudeSession[]>("claude_sessions", { root }),
 };
@@ -92,7 +103,7 @@ export const git = {
   switchBranch: (root: string, branch: string, create: boolean) =>
     invoke<void>("git_switch", { root, branch, create }),
   init: (root: string) => invoke<void>("git_init", { root }),
-  sync: (root: string, op: "pull" | "push" | "fetch") => invoke<string>("git_sync", { root, op }),
+  sync: (root: string, op: "pull" | "push" | "fetch" | "publish") => invoke<string>("git_sync", { root, op }),
   log: (root: string, limit = 300) => invoke<Commit[]>("git_log", { root, limit }),
   commitFiles: (root: string, hash: string) => invoke<FileChange[]>("git_commit_files", { root, hash }),
 };

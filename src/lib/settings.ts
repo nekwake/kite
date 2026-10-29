@@ -1,9 +1,23 @@
 import { useEffect, useState } from "react";
 
-export type Settings = { editorFontSize: number; terminalFontSize: number; autoSave: boolean };
+export type Settings = {
+  editorFontSize: number;
+  terminalFontSize: number;
+  autoSave: boolean;
+  minimap: boolean;
+  wordWrap: boolean;
+  tabSize: number;
+};
 
 const KEY = "kite.settings";
-export const DEFAULT_SETTINGS: Settings = { editorFontSize: 13, terminalFontSize: 13, autoSave: false };
+export const DEFAULT_SETTINGS: Settings = {
+  editorFontSize: 13,
+  terminalFontSize: 13,
+  autoSave: false,
+  minimap: false,
+  wordWrap: false,
+  tabSize: 2,
+};
 
 export function loadSettings(): Settings {
   try {
