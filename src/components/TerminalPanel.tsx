@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createTerminal, ensureTerminal, TerminalSession } from "../lib/terminals";
 
 export type Pane = { id: number; cwd: string; command?: string };
@@ -20,10 +20,25 @@ type Props = {
   onClose: (id: number) => void;
   onClosePane: (tabId: number, paneId: number) => void;
   onHide: () => void;
+  maximized: boolean;
+  onToggleMaximize: () => void;
 };
+
+const folderName = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
 
 export function TerminalPanel(props: Props) {
   const { view, tabs, activeId } = props;
+  // The pane that last got focus from the list; it takes keyboard focus
+  const [focusedPane, setFocusedPane] = useState<number | null>(null);
+  const active = tabs.find((t) => t.id === activeId);
+  // A new split takes focus, like VS Code
+  const paneCount = active?.panes.length ?? 0;
+  useEffect(() => {
+    if (active) setFocusedPane(active.panes[active.panes.length - 1].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, paneCount]);
+  const killTarget = active && (active.panes.find((p) => p.id === focusedPane) ?? active.panes[active.panes.length - 1]);
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -35,60 +50,114 @@ export function TerminalPanel(props: Props) {
             TERMİNAL
           </button>
         </div>
-        {view === "terminal" && (
-          <div className="panel-tabs">
-            {tabs.map((t) => (
-              <div
-                key={t.id}
-                className={`panel-tab ${t.id === activeId ? "active" : ""}`}
-                onClick={() => props.onSelect(t.id)}
-              >
-                <span>{t.title}{t.panes.length > 1 ? ` (${t.panes.length})` : ""}</span>
-                <button
-                  className="tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    props.onClose(t.id);
-                  }}
-                >
-                  <span className="x">×</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
         <div className="panel-actions">
           {view === "terminal" && (
             <>
               <button className="icon-btn" onClick={props.onNew} title="Yeni terminal (⌘T)">+</button>
-              <button className="icon-btn" onClick={props.onSplit} title="Terminali böl (⌘\)" disabled={!tabs.length}>⫿</button>
+              <button className="icon-btn" onClick={props.onSplit} title="Terminali böl (⌘\)" disabled={!tabs.length}>
+                <SplitIcon />
+              </button>
+              <button
+                className="icon-btn"
+                disabled={!killTarget}
+                onClick={() => active && killTarget && props.onClosePane(active.id, killTarget.id)}
+                title="Terminali kapat"
+              >
+                <TrashIcon />
+              </button>
+              <span className="panel-sep" />
             </>
           )}
-          <button className="icon-btn" onClick={props.onHide} title="Paneli gizle (⌘J)">⌄</button>
+          <button className="icon-btn" onClick={props.onToggleMaximize} title={props.maximized ? "Paneli küçült" : "Paneli büyüt"}>
+            {props.maximized ? "⤡" : "⤢"}
+          </button>
+          <button className="icon-btn" onClick={props.onHide} title="Paneli gizle (⌘J)">×</button>
         </div>
       </div>
-      <div className="panel-body" style={{ display: view === "terminal" ? "block" : "none" }}>
-        {tabs.map((t) => (
-          <div key={t.id} className="pane-row" style={{ display: t.id === activeId ? "flex" : "none" }}>
-            {t.panes.map((p, i) => (
-              <div key={p.id} className="pane">
-                {i > 0 && <div className="pane-sep" />}
-                <TerminalView tab={p} active={t.id === activeId && view === "terminal"} onExit={() => props.onClosePane(t.id, p.id)} />
+
+      <div className="panel-main" style={{ display: view === "terminal" ? "flex" : "none" }}>
+        <div className="panel-body">
+          {tabs.map((t) => (
+            <div key={t.id} className="pane-row" style={{ display: t.id === activeId ? "flex" : "none" }}>
+              {t.panes.map((p, i) => (
+                <div key={p.id} className="pane" onMouseDown={() => setFocusedPane(p.id)}>
+                  {i > 0 && <div className="pane-sep" />}
+                  <TerminalView
+                    tab={p}
+                    active={t.id === activeId && view === "terminal"}
+                    focused={focusedPane === p.id}
+                    onExit={() => props.onClosePane(t.id, p.id)}
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Terminal list on the right, like VS Code; split panes are grouped with ┌ └ */}
+        <div className="term-list">
+          {tabs.map((t) =>
+            t.panes.map((p, i) => (
+              <div
+                key={p.id}
+                className={`term-item ${t.id === activeId ? "active" : ""} ${t.id === activeId && (focusedPane ?? t.panes[0].id) === p.id ? "focused" : ""}`}
+                onClick={() => {
+                  props.onSelect(t.id);
+                  setFocusedPane(p.id);
+                }}
+                title={p.cwd}
+              >
                 {t.panes.length > 1 && (
-                  <button className="pane-close icon-btn" title="Bu bölmeyi kapat" onClick={() => props.onClosePane(t.id, p.id)}>×</button>
+                  <span className="term-branch">{i === 0 ? "┌" : i === t.panes.length - 1 ? "└" : "├"}</span>
                 )}
+                <span className="term-icon">›_</span>
+                <span className="term-name">{p.command?.split(" ")[0] ?? "zsh"}</span>
+                <span className="term-cwd">{folderName(p.cwd)}</span>
+                <span className="term-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="icon-btn"
+                    title="Böl"
+                    onClick={() => {
+                      props.onSelect(t.id);
+                      props.onSplit();
+                    }}
+                  >
+                    <SplitIcon />
+                  </button>
+                  <button className="icon-btn" title="Kapat" onClick={() => props.onClosePane(t.id, p.id)}>
+                    <TrashIcon />
+                  </button>
+                </span>
               </div>
-            ))}
-          </div>
-        ))}
+            )),
+          )}
+        </div>
       </div>
       {view === "problems" && <div className="panel-body problems-body">{props.problems}</div>}
     </div>
   );
 }
 
+function SplitIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+      <path d="M8 2.5v11" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
+      <path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v4.5M9.2 6.5v4.5" />
+    </svg>
+  );
+}
+
 /** A bottom-panel terminal; it lives as long as this component */
-function TerminalView({ tab, active, onExit }: { tab: Omit<Pane, "id">; active: boolean; onExit: () => void }) {
+function TerminalView(props: { tab: Omit<Pane, "id">; active: boolean; focused: boolean; onExit: () => void }) {
+  const { tab, active, onExit } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const session = useRef<TerminalSession | null>(null);
   const onExitRef = useRef(onExit);
@@ -107,9 +176,9 @@ function TerminalView({ tab, active, onExit }: { tab: Omit<Pane, "id">; active: 
     if (!active) return;
     requestAnimationFrame(() => {
       session.current?.refit();
-      session.current?.focus();
+      if (props.focused) session.current?.focus();
     });
-  }, [active]);
+  }, [active, props.focused]);
 
   return <div ref={hostRef} className="terminal-slot" />;
 }

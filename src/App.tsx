@@ -68,6 +68,7 @@ export default function App() {
 
   const [terms, setTerms] = useState<TermTab[]>([]);
   const [panelView, setPanelView] = useState<PanelView>("terminal");
+  const [panelMax, setPanelMax] = useState(false);
   const problems = useProblems();
   const [activeTerm, setActiveTerm] = useState<number | null>(null);
   const nextTermId = useRef(1);
@@ -792,7 +793,7 @@ export default function App() {
           </>
         )}
         <div className="main">
-          <div className="main-editor">
+          <div className="main-editor" style={{ display: panelMax && panelOpen ? "none" : undefined }}>
             <EditorArea
               group="main"
               tabs={tabs.filter((t) => groupOf(t) === "main")}
@@ -824,7 +825,7 @@ export default function App() {
           {/* Kept mounted while hidden so shells keep running */}
           <div style={{ display: panelOpen && (terms.length || panelView === "problems") ? "contents" : "none" }}>
             <Resizer dir="y" onDrag={(d) => setPanelH((h) => clamp(h - d, 100, 800))} />
-            <div className="main-panel" style={{ height: panelH }}>
+            <div className="main-panel" style={panelMax ? { flex: 1 } : { height: panelH }}>
               <TerminalPanel
                 tabs={terms}
                 activeId={panelOpen ? activeTerm : null}
@@ -848,6 +849,8 @@ export default function App() {
                   />
                 }
                 onClose={closeTerminal}
+                maximized={panelMax}
+                onToggleMaximize={() => setPanelMax((m) => !m)}
                 onHide={() => setPanelOpen(false)}
               />
             </div>
