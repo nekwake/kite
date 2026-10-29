@@ -6,6 +6,7 @@ import { ACCENT_PRESETS, applyAccent, currentAccent } from "../lib/theme";
 import { DEFAULT_SETTINGS, updateSettings, useSettings } from "../lib/settings";
 import { KiteMark } from "./KiteLogo";
 import { getKey, setKey } from "../lib/openrouter";
+import { usageApi } from "../lib/usage";
 import { t } from "../lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -49,7 +50,7 @@ const SHORTCUTS: [string, string][] = [
   ["Yeni pencere", "⌘⇧N"], ["Gezgin", "⌘⇧E"], ["Projede ara", "⌘⇧F"], ["Kaynak kontrolü", "⌘⇧G"],
   ["Claude oturumları", "⌘⇧C"], ["Yeni Claude oturumu", "⌘L"], ["Kenar çubuğu", "⌘B"],
   ["Terminal aç/kapat", "⌘J"], ["Yeni terminal", "⌘T"], ["Yakınlaştır / uzaklaştır", "⌘+ / ⌘-"],
-  ["Gerçek boyut", "⌘0"], ["Ayarlar", "⌘,"],
+  ["Gerçek boyut", "⌘0"], ["Dosyayı biçimlendir", "⌥⇧F"], ["Ayarlar", "⌘,"],
 ];
 
 export function Settings(props: Props) {
@@ -151,6 +152,9 @@ export function Settings(props: Props) {
       <Row label={t("Mini harita")} hint="Editörün sağında dosyanın küçük önizlemesi">
         <Toggle value={s.minimap} onChange={(v) => updateSettings({ minimap: v })} />
       </Row>
+      <Row label="Kaydederken biçimlendir" hint="Prettier ile (⌥⇧F). Projede .prettierrc varsa onu kullanır">
+        <Toggle value={s.formatOnSave} onChange={(v) => updateSettings({ formatOnSave: v })} />
+      </Row>
       <Row label={t("Otomatik kaydet")} hint="Yazmayı bıraktıktan 1 saniye sonra kaydeder">
         <Toggle value={s.autoSave} onChange={(v) => updateSettings({ autoSave: v })} />
       </Row>
@@ -222,6 +226,9 @@ export function Settings(props: Props) {
         ) : (
           <button className="primary-btn" onClick={props.onConnectClaude}>{t("Claude'a giriş yap")}</button>
         )}
+      </Row>
+      <Row label="Claude limitleri" hint="5 saatlik ve haftalık kullanımını sağ altta göster. Claude Code'a küçük bir status line ekler (~/.claude/settings.json yedeklenir)">
+        <ClaudeUsageToggle />
       </Row>
       <Row label="OpenRouter" hint="Ücretsiz modellerle kod okuyabilen sohbet (⌘⇧L). Anahtar macOS Anahtar Zinciri'nde durur">
         <OpenRouterKey />
@@ -310,6 +317,35 @@ export function Settings(props: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ClaudeUsageToggle() {
+  const [state, setState] = useState<{ enabled: boolean; other: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => usageApi.get().then((u) => setState({ enabled: u.enabled, other: u.otherStatusLine })).catch((e) => setError(String(e)));
+  useEffect(() => {
+    load();
+  }, []);
+  if (error) return <span className="git-error">{error}</span>;
+  if (!state) return <span className="muted">{t("Kontrol ediliyor…")}</span>;
+  if (state.other) return <span className="muted">{t("Claude Code'da başka bir status line var")}</span>;
+  return (
+    <button
+      className={`switch ${state.enabled ? "on" : ""}`}
+      role="switch"
+      aria-checked={state.enabled}
+      onClick={() =>
+        (state.enabled ? usageApi.disable() : usageApi.enable())
+          .then(() => {
+            load();
+            window.dispatchEvent(new Event("kite-usage-changed"));
+          })
+          .catch((e) => setError(String(e)))
+      }
+    >
+      <span />
+    </button>
   );
 }
 

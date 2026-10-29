@@ -29,6 +29,8 @@ import { dropChat } from "./lib/chatStore";
 import { PanelView, TerminalPanel, TermTab } from "./components/TerminalPanel";
 import { Problem, useProblems } from "./lib/problems";
 import { useUpdate } from "./lib/updater";
+import { formatText, parserFor } from "./lib/format";
+import { level, pct, resetTime, useClaudeUsage } from "./lib/usage";
 import { ActivityBar, Resizer, StatusBar, TitleBar, View } from "./components/Chrome";
 import { ClaudeSessions } from "./components/ClaudeSessions";
 
@@ -89,6 +91,7 @@ export default function App() {
   const { status: gitStatus, refresh: refreshGit } = useGitStatus(root);
   const settings = useSettings();
   const updater = useUpdate();
+  const usage = useClaudeUsage();
   const updateInfo = updater.update
     ? { version: updater.update.version, progress: updater.progress, onInstall: () => updater.install().catch((e) => setError(String(e))) }
     : null;
@@ -508,10 +511,32 @@ export default function App() {
     refreshGit();
   };
 
+  /** Prettier on the active file, as one undoable edit; returns the new text */
+  const formatActive = async (): Promise<string | null> => {
+    if (!activeFile || !root) return null;
+    const model = findModel(activeFile.path);
+    try {
+      const formatted = await formatText(activeFile.path, model?.getValue() ?? activeFile.content, root);
+      if (formatted === null) {
+        setError(t("Bu dosya türü biçimlendirilemiyor"));
+        return null;
+      }
+      if (model && formatted !== model.getValue()) {
+        model.pushEditOperations([], [{ range: model.getFullModelRange(), text: formatted }], () => null);
+      }
+      return formatted;
+    } catch (e) {
+      setError(`${t("Biçimlendirilemedi")}: ${String(e).split("\n")[0]}`);
+      return null;
+    }
+  };
+
   const save = useCallback(async () => {
     if (!activeFile) return;
     if (activeFile.untitled) return saveAs(activeFile);
-    const { path, content } = activeFile;
+    const { path } = activeFile;
+    let { content } = activeFile;
+    if (getSettings().formatOnSave && parserFor(path)) content = (await formatActive()) ?? content;
     try {
       await api.writeFile(path, content);
       setTabs((ts) => ts.map((t) => (t.id === path ? { ...t, saved: content } : t)));
@@ -589,6 +614,7 @@ export default function App() {
     quick_open: () => root && setQuickOpen(""),
     command_palette: () => root && setQuickOpen(">"),
     goto_line: () => root && activeFile && setQuickOpen(":"),
+    format: () => formatActive(),
     zoom_in: () => zoom(1),
     zoom_out: () => zoom(-1),
     zoom_reset: () => zoom("reset"),
@@ -632,6 +658,12 @@ export default function App() {
     };
     // Capture phase so shortcuts win over Monaco and xterm
     const onKey = (e: KeyboardEvent) => {
+      // ⌥⇧F / Alt+Shift+F formats, like VS Code (code, not key: Option changes the letter)
+      if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && e.code === "KeyF") {
+        e.preventDefault();
+        e.stopPropagation();
+        return runAction("format");
+      }
       if (!hasMod(e) || e.altKey || (isMac && e.ctrlKey)) return;
       // On Windows, Ctrl+letter belongs to the shell inside a terminal unless Shift is held
       if (!isMac && !e.shiftKey && (e.target as HTMLElement).closest?.(".xterm") && !"pj`".includes(e.key.toLowerCase())) return;
@@ -658,6 +690,7 @@ export default function App() {
     { id: "goto_line", label: "Satıra git", shortcut: "⌘G", run: () => setTimeout(() => setQuickOpen(":"), 0) },
     { id: "new_file", label: "Dosya: Yeni dosya", shortcut: "⌘N", run: newFile },
     { id: "save", label: "Dosya: Kaydet", shortcut: "⌘S", run: () => runAction("save") },
+    { id: "format", label: "Dosyayı biçimlendir (Prettier)", shortcut: "⌥⇧F", run: () => runAction("format") },
     { id: "save_as", label: "Dosya: Farklı kaydet", shortcut: "⌘⇧S", run: () => runAction("save_as") },
     { id: "new_window", label: "Yeni pencere", shortcut: "⌘⇧N", run: () => invoke("open_window") },
     { id: "close_tab", label: "Sekmeyi kapat", shortcut: "⌘W", run: () => runAction("close_tab") },
@@ -955,6 +988,7 @@ export default function App() {
             ? [`Sat ${cursor[0]}, Süt ${cursor[1]}`, languageFor(activeFile.path), "UTF-8"]
             : []
         }
+        usage={usageBadge(usage)}
         toggles={[
           { label: <><Icon name="terminal" size={14} /> {t("Terminal")}</>, title: "Terminali aç/kapat (⌘J)", on: panelOpen && panelView === "terminal" && terms.length > 0, fn: togglePanel },
           { label: <><Icon name="sparkle" size={14} /> Claude</>, title: "Yeni Claude oturumu (⌘L)", on: false, fn: () => openClaude() },
@@ -987,5 +1021,29 @@ function ProblemsList({ problems, root, onOpen }: { problems: Problem[]; root: s
         </div>
       ))}
     </div>
+  );
+}
+
+/** "5s %42 · 7g %18" in the status bar once Claude Code has reported usage */
+function usageBadge(usage: ReturnType<typeof useClaudeUsage>) {
+  const r = usage?.enabled ? usage.rateLimits : null;
+  if (!r) return null;
+  const five = pct(r.five_hour);
+  const week = pct(r.seven_day);
+  if (five === null && week === null) return null;
+  const fmt = (d: Date | null) =>
+    d ? d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "?";
+  const title = [
+    five !== null ? `${t("5 saatlik limit")}: %${five} · ${t("sıfırlanma")} ${fmt(resetTime(r.five_hour))}` : "",
+    week !== null ? `${t("Haftalık limit")}: %${week} · ${t("sıfırlanma")} ${fmt(resetTime(r.seven_day))}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <span className="usage-badge" title={title}>
+      <Icon name="sparkle" size={12} />
+      {five !== null && <span className={`usage-${level(five)}`}>{t("5s")} %{five}</span>}
+      {week !== null && <span className={`usage-${level(week)}`}>{t("7g")} %{week}</span>}
+    </span>
   );
 }

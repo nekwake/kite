@@ -14,6 +14,7 @@ export type Settings = {
   notifyOnlyUnfocused: boolean;
   /** Bottom panel spans the whole width, or only the left editor group */
   panelFullWidth: boolean;
+  formatOnSave: boolean;
 };
 
 const KEY = "kite.settings";
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyTerminal: true,
   notifyOnlyUnfocused: true,
   panelFullWidth: false,
+  formatOnSave: false,
 };
 
 export function loadSettings(): Settings {

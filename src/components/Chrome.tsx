@@ -102,7 +102,7 @@ type Toggle = { label: ReactNode; title: string; on: boolean; fn: () => void };
 
 type StatusItem = string | { label: string; title: string; onClick: () => void };
 
-export function StatusBar({ left, right, toggles }: { left: StatusItem[]; right: string[]; toggles: Toggle[] }) {
+export function StatusBar({ left, right, toggles, usage }: { left: StatusItem[]; right: string[]; toggles: Toggle[]; usage?: ReactNode }) {
   return (
     <div className="statusbar">
       <div>
@@ -116,6 +116,7 @@ export function StatusBar({ left, right, toggles }: { left: StatusItem[]; right:
       </div>
       <div>
         {right.map((s) => <span key={s}>{s}</span>)}
+        {usage}
         <span className="status-toggles">
           {toggles.map((tg) => (
             <button key={tg.title} className={`status-toggle ${tg.on ? "on" : ""}`} title={t(tg.title)} onClick={tg.fn}>

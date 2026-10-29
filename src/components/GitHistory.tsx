@@ -72,6 +72,7 @@ export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
                 title={`${row.commit.subject}\n${row.commit.author} · ${new Date(row.commit.time * 1000).toLocaleString("tr-TR")} · ${row.commit.hash.slice(0, 7)}`}
               >
                 <GraphCell row={row} width={width} />
+                <AuthorBadge name={row.commit.author} />
                 <span className="history-subject">{row.commit.subject}</span>
                 {row.commit.refs.map((r) => (
                   <span key={r} className={`ref ${r.startsWith("HEAD") ? "ref-head" : r.includes("/") ? "ref-remote" : ""}`}>
@@ -105,6 +106,7 @@ export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
             onClick={() => setSelected(row.commit)}
           >
             <GraphCell row={row} width={width} />
+            <AuthorBadge name={row.commit.author} />
             <span className="history-subject">
               {row.commit.refs.map((r) => (
                 <span key={r} className={`ref ${r.startsWith("HEAD") ? "ref-head" : r.includes("/") ? "ref-remote" : ""}`}>
@@ -144,6 +146,29 @@ export function GitHistory({ root, onOpenDiff, compact, refreshKey }: Props) {
   );
 }
 
+/** A stable color per author, so commits by different people stand apart */
+function authorColor(name: string) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h} 65% 62%)`;
+}
+
+const initials = (name: string) =>
+  name
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toLocaleUpperCase("tr"))
+    .join("") || "?";
+
+function AuthorBadge({ name }: { name: string }) {
+  return (
+    <span className="author-badge" style={{ background: authorColor(name) }} title={name}>
+      {initials(name)}
+    </span>
+  );
+}
+
 function GraphCell({ row, width }: { row: GraphRow; width: number }) {
   const x = (i: number) => 8 + i * LANE;
   const mid = ROW / 2;
@@ -170,7 +195,8 @@ function GraphCell({ row, width }: { row: GraphRow; width: number }) {
   return (
     <svg className="graph-cell" width={width} height={ROW} fill="none" strokeWidth="2">
       {paths}
-      <circle cx={x(row.col)} cy={mid} r="4" style={{ fill: color(row.col) }} stroke="#181818" strokeWidth="2" />
+      {/* Lanes are colored by branch, the dot by who made the commit */}
+      <circle cx={x(row.col)} cy={mid} r="4.5" style={{ fill: authorColor(row.commit.author) }} stroke="#181818" strokeWidth="2" />
     </svg>
   );
 }

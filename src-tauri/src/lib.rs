@@ -7,6 +7,7 @@ mod platform;
 mod pty;
 mod search;
 mod secrets;
+mod usage;
 mod watch;
 mod window;
 
@@ -78,6 +79,9 @@ pub fn run() {
             menu::set_menu_language,
             secrets::secret_get,
             secrets::secret_set,
+            usage::claude_usage,
+            usage::claude_usage_enable,
+            usage::claude_usage_disable,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

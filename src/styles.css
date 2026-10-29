@@ -302,6 +302,7 @@ kbd {
   align-items: center;
   justify-content: space-between;
   padding-right: 6px;
+  border-bottom: 1px solid var(--border);
 }
 .panel-tabs {
   display: flex;
@@ -1484,3 +1485,18 @@ body.dragging-tab, body.dragging-tab * { cursor: grabbing !important; user-selec
 .win-controls button:hover { background: #ffffff14; color: var(--fg); }
 .win-controls .win-close:hover { background: #e81123; color: #fff; }
 .titlebar-win .update-btn { right: 150px; }
+.author-badge {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #141414;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+.usage-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-dim); font-variant-numeric: tabular-nums; cursor: default; }
+.usage-badge svg { color: var(--accent); }
+.usage-mid { color: #e5a50a; }
+.usage-high { color: #f14c4c; }
