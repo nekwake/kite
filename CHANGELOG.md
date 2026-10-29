@@ -2,6 +2,13 @@
 
 Her sürüm için kısa notlar.
 
+## 0.3.0
+
+- Windows desteği: kurulum dosyası, PowerShell terminali, Kite'ın kendi pencere düğmeleri, Ctrl kısayolları
+- OpenRouter sohbeti: ücretsiz modellerle projeni okuyabilen asistan (⌘⇧L)
+- Giriş ekranında "Did You Know?" bilgisi
+- İngilizce README
+
 ## 0.2.0
 
 - İlk herkese açık sürüm: GitHub'dan indirilebilir .dmg
