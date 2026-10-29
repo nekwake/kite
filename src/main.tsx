@@ -1,5 +1,7 @@
 import ReactDOM from "react-dom/client";
 import "./lib/monaco";
+// xterm's own styles hide its input textarea; loaded here so they never drop out
+import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import { applyAccent, storedAccent } from "./lib/theme";
 import App from "./App";

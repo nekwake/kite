@@ -690,6 +690,7 @@ export default function App() {
           view={view}
           sidebarOpen={sidebarOpen}
           gitBadge={gitStatus?.changes.length ?? 0}
+          onSettings={() => setSettingsOpen(true)}
           onView={(v) => {
             if (v === view && sidebarOpen) setSidebarOpen(false);
             else showView(v);
@@ -831,7 +832,6 @@ export default function App() {
         toggles={[
           { label: "Terminal", title: "Terminali aç/kapat (⌘J)", on: panelOpen && terms.length > 0, fn: togglePanel },
           { label: "✦ Claude", title: "Yeni Claude oturumu (⌘L)", on: false, fn: () => openClaude() },
-          { label: "⚙", title: "Ayarlar (⌘,)", on: settingsOpen, fn: () => setSettingsOpen(true) },
         ]}
       />
     </div>

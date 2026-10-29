@@ -6,7 +6,6 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import "@xterm/xterm/css/xterm.css";
 import { api } from "./api";
 import { currentAccent } from "./theme";
 import { getSettings, Settings } from "./settings";
@@ -74,22 +73,28 @@ export function createTerminal(opts: { cwd: string; command?: string; onExit: ()
   let ptyId: number | null = null;
   let disposed = false;
 
-  api
-    .ptySpawn(opts.cwd, term.cols, term.rows, (e) => {
-      if (e.type === "output") term.write(e.data);
-      else if (!disposed) opts.onExit();
-    })
-    .then((id) => {
-      if (disposed) {
-        api.ptyKill(id);
-        return;
-      }
-      ptyId = id;
-      refit();
-      api.ptyResize(id, term.cols, term.rows);
-      if (opts.command) api.ptyWrite(id, opts.command + "\r");
-    })
-    .catch((err) => term.write(`\r\n\x1b[31mTerminal açılamadı: ${err}\x1b[0m\r\n`));
+  // Start the shell once the element is on screen and measured, so its first
+  // prompt is drawn at the real width (a wrong width leaves stray "%" lines)
+  const spawn = () =>
+    api
+      .ptySpawn(opts.cwd, term.cols, term.rows, (e) => {
+        if (e.type === "output") term.write(e.data);
+        else if (!disposed) opts.onExit();
+      })
+      .then((id) => {
+        if (disposed) {
+          api.ptyKill(id);
+          return;
+        }
+        ptyId = id;
+        if (opts.command) api.ptyWrite(id, opts.command + "\r");
+      })
+      .catch((err) => term.write(`\r\n\x1b[31mTerminal açılamadı: ${err}\x1b[0m\r\n`));
+  requestAnimationFrame(() => {
+    if (disposed) return;
+    refit();
+    spawn();
+  });
 
   term.onData((data) => ptyId !== null && api.ptyWrite(ptyId, data));
   term.onResize(({ cols, rows }) => ptyId !== null && api.ptyResize(ptyId, cols, rows));
